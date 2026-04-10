@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AILA | Cardiovascular Mortality Risk Calculator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:      #0c1a36;
+    --surface: #132040;
+    --surf2:   #0e1b38;
+    --border:  #1e3260;
+    --border2: #192d56;
+    --text:    #dde8f8;
+    --muted:   #6d8ec0;
+    --dim:     #9ab4d8;
+    --blue:    #60a5fa;
+    --blue2:   #93c5fd;
+    --low:     #34d399;
+    --mid:     #fbbf24;
+    --high:    #f87171;
+    --adm:     #60a5fa;
+    --dis:     #22d3ee;
+    --max:     #fbbf24;
+    --grad1:   #06101f;
+    --grad2:   #0c1e40;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family:'IBM Plex Sans',sans-serif; background:linear-gradient(160deg,#07111f 0%,#0c1a36 45%,#0a1830 100%); background-attachment:fixed; color:var(--text); font-size:14px; line-height:1.6; min-height:100vh; }
+
+  /* HEADER */
+  .hdr { background:linear-gradient(135deg,#04090f 0%,#071425 50%,#0c1e40 100%); border-bottom:1px solid rgba(96,165,250,0.12); padding:18px 28px; display:flex; flex-direction:column; align-items:center; gap:6px; position:sticky; top:0; z-index:100; box-shadow:0 4px 28px rgba(0,0,0,0.7); }
+  .hdr-center { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .htitle { font-family:'IBM Plex Mono',monospace; font-size:1.8rem; font-weight:600; letter-spacing:-0.02em; color:#ffffff; text-align:center; }
+  .htitle span { color:#93c5fd; }
+  .hpaper { font-size:0.74rem; color:#bfdbfe; font-weight:500; font-style:italic; text-align:center; }
+  .hsub   { font-size:0.68rem; color:#93c5fd; text-align:center; }
+  .bdgs   { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+  .bdg    { font-family:'IBM Plex Mono',monospace; font-size:0.61rem; padding:3px 10px; border-radius:20px; border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.8); background:rgba(255,255,255,0.1); white-space:nowrap; backdrop-filter:blur(4px); }
+
+  /* LAYOUT */
+  .main { max-width:1400px; margin:0 auto; padding:20px 24px 40px; display:grid; grid-template-columns:500px 1fr; gap:24px; align-items:start; }
+
+  /* MODEL SELECTOR */
+  .msel { grid-column:1/-1; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+  .msel-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:10px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .tab { font-family:'IBM Plex Sans',sans-serif; font-size:0.78rem; padding:8px 18px; border-radius:8px; border:1.5px solid var(--border); background:var(--surf2); color:var(--dim); cursor:pointer; transition:all 0.2s; white-space:nowrap; font-weight:500; }
+  .tab:hover { border-color:var(--blue2); color:var(--blue); background:rgba(96,165,250,0.08); transform:translateY(-1px); box-shadow:0 2px 8px rgba(96,165,250,0.15); }
+  .tab.active-adm { background:rgba(96,165,250,0.12); border-color:var(--adm); color:var(--adm); font-weight:600; }
+  .tab.active-dis { background:rgba(34,211,238,0.1); border-color:var(--dis); color:var(--dis); font-weight:600; }
+  .tab.active-max { background:rgba(251,191,36,0.1); border-color:var(--max); color:var(--max); font-weight:600; }
+  .ibar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 12px; border-radius:6px; background:var(--surf2); border:1px solid var(--border2); }
+  .ibar-name { font-weight:600; font-size:0.82rem; }
+  .ibar-desc { font-size:0.72rem; color:var(--muted); }
+  .chip { font-family:'IBM Plex Mono',monospace; font-size:0.63rem; padding:2px 8px; border-radius:3px; font-weight:500; }
+  .chip-cox { background:rgba(96,165,250,0.12); color:#93c5fd; border:1px solid rgba(96,165,250,0.3); }
+  .chip-rsf { background:rgba(52,211,153,0.1); color:#6ee7b7; border:1px solid rgba(52,211,153,0.3); }
+  .chip-xgb { background:rgba(248,113,113,0.1); color:#fca5a5; border:1px solid rgba(248,113,113,0.3); }
+
+  /* FORM */
+  .fc { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.07); }
+  .errmsg { padding:10px 16px; background:rgba(248,113,113,0.12); border-bottom:1px solid rgba(248,113,113,0.3); color:#fca5a5; font-size:0.78rem; display:none; }
+  .fsec { border-bottom:1px solid var(--border2); }
+  .fsec:last-child { border-bottom:none; }
+  .sh { display:flex; align-items:center; gap:8px; padding:11px 18px; background:linear-gradient(90deg,var(--surf2),var(--surface)); border-bottom:1px solid var(--border2); }
+  .sdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 2px rgba(0,0,0,0.06); }
+  .sdot-adm{background:var(--adm);} .sdot-dis{background:var(--dis);} .sdot-max{background:var(--max);}
+  .sname { font-weight:700; font-size:0.86rem; }
+  .stag  { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); margin-left:auto; }
+  .sf  { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border2); }
+  .sf.c1 { grid-template-columns:1fr; }
+  .fld { background:var(--surface); padding:11px 16px; display:flex; flex-direction:column; gap:5px; }
+  .lbl { font-size:0.76rem; color:var(--dim); font-weight:500; line-height:1.4; }
+  .u   { color:var(--muted); font-weight:400; }
+  .inp { background:#0e1d3a; border:1.5px solid var(--border); border-radius:8px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:0.85rem; padding:8px 12px; width:100%; transition:border-color 0.2s,box-shadow 0.2s; -moz-appearance:textfield; }
+  .inp::-webkit-inner-spin-button,.inp::-webkit-outer-spin-button{-webkit-appearance:none;}
+  select.inp { background:#0e1d3a; color:var(--text); }
+  select.inp:focus { background:#0e1d3a; color:var(--text); }
+  select.inp option { background:#0c1a36; color:var(--text); }
+  select.inp option:checked { background:#1a2d52; color:var(--text); }
+  .inp:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(96,165,250,0.15); background:#0e1d3a; }
+  .inp-inline { display:inline-block !important; width:96px !important; padding:3px 7px !important; font-size:0.80rem !important; vertical-align:middle; margin-left:6px; }
+  .nlr-row { grid-column:1/-1; }
+  .nlr-inner { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border2); margin-top:1px; }
+  .nlr-inner .fld { background:var(--surface); }
+  .nlr-sep { font-size:0.72rem; color:var(--muted); padding:5px 16px 0; font-style:italic; }
+  .note { padding:8px 16px; font-size:0.72rem; color:var(--muted); font-style:italic; background:var(--surface); grid-column:1/-1; line-height:1.5; }
+  .calc-btn { width:100%; padding:14px; background:linear-gradient(135deg,var(--grad1),var(--blue2)); color:#fff; border:none; font-family:'IBM Plex Sans',sans-serif; font-size:0.92rem; font-weight:600; cursor:pointer; transition:all 0.2s; letter-spacing:0.03em; border-radius:0 0 14px 14px; }
+  .calc-btn:hover  { background:linear-gradient(135deg,var(--blue),var(--blue2)); box-shadow:0 4px 16px rgba(29,78,216,0.35); transform:translateY(-1px); }
+  .calc-btn:active { transform:scale(0.99); }
+
+  /* RESULTS */
+  .results-col { display:flex; flex-direction:column; gap:16px; }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.07); opacity:0; transform:translateY(12px); transition:opacity 0.4s ease,transform 0.4s ease; }
+  .panel.visible { opacity:1; transform:translateY(0); }
+  .panel.init    { opacity:1; transform:none; }
+  .ph { padding:11px 18px; background:linear-gradient(90deg,var(--surf2),var(--surface)); border-bottom:1px solid var(--border2); font-family:'IBM Plex Mono',monospace; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.09em; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .pb { padding:16px 18px; }
+
+  /* Risk badge */
+  .rbadge { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:6px; font-weight:600; font-size:0.95rem; margin-bottom:10px; }
+  .rbadge-low  { background:#f0fdf4; color:var(--low);  border:1px solid #86efac; }
+  .rbadge-mid  { background:#fffbeb; color:var(--mid);  border:1px solid #fcd34d; }
+  .rbadge-high { background:#fef2f2; color:var(--high); border:1px solid #fca5a5; }
+
+  /* Mortality grid */
+  .mgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+  .mc { background:var(--surf2); border-radius:12px; padding:14px 8px; text-align:center; border:1.5px solid var(--border2); transition:transform 0.2s,box-shadow 0.2s; }
+  .mc:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+  .mc-t  { font-size:0.63rem; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }
+  .mc-v  { font-size:1.3rem; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+  .mc-ci { font-size:0.59rem; color:var(--muted); margin-top:3px; }
+
+  /* Risk position bar — APEX-AF style */
+  .rp-wrap { margin:14px 0 4px; }
+  .rp-title { font-size:0.92rem; color:var(--dim); font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .rp-bar-outer { position:relative; height:22px; border-radius:11px; overflow:visible; background:linear-gradient(90deg,#059669 0%,#059669 33%,#d97706 33%,#d97706 67%,#dc2626 67%,#dc2626 100%); box-shadow:0 2px 6px rgba(0,0,0,0.15); }
+  .rp-bar-bg { width:100%; height:100%; border-radius:11px; opacity:0.85; }
+  .rp-needle { position:absolute; top:-5px; width:4px; height:32px; background:#0f172a; border-radius:2px; transform:translateX(-50%); box-shadow:0 2px 6px rgba(0,0,0,0.4); transition:left 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .rp-needle::after { content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:12px; height:12px; background:#0f172a; border-radius:50%; border:2px solid #fff; }
+  .rp-labels { display:flex; justify-content:space-between; margin-top:5px; font-size:0.62rem; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .rp-label-mid { position:absolute; bottom:-20px; transform:translateX(-50%); font-size:0.60rem; color:var(--muted); font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  .rp-tiers { display:flex; gap:8px; margin-top:10px; }
+  .rp-tier-chip { flex:1; padding:5px 8px; border-radius:6px; display:flex; align-items:center; gap:6px; font-size:0.70rem; }
+  .rp-tier-chip .rp-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .rp-tier-chip.chip-low  { background:#f0fdf4; border:1px solid #86efac; color:#065f46; }
+  .rp-tier-chip.chip-mid  { background:#fffbeb; border:1px solid #fcd34d; color:#78350f; }
+  .rp-tier-chip.chip-high { background:#fef2f2; border:1px solid #fca5a5; color:#7f1d1d; }
+  .rp-tier-chip.active    { box-shadow:0 0 0 2px currentColor; font-weight:700; }
+  /* Large risk badge — new modern style */
+  .rbig { display:flex; align-items:center; gap:16px; padding:16px 18px; border-radius:12px; margin-bottom:4px; border:2px solid; }
+  .rbig-circle { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.70rem; text-align:center; line-height:1.25; flex-shrink:0; padding:6px; }
+  .rbig-text h3 { font-size:1.15rem; font-weight:700; margin-bottom:2px; }
+  .rbig-text p  { font-size:0.72rem; opacity:0.85; line-height:1.4; }
+  .rbig-lp { font-family:'IBM Plex Mono',monospace; font-size:0.68rem; margin-top:6px; opacity:0.6; }
+  .rbig.rbig-low  { background:#f0fdf4; border-color:#4ade80; color:#14532d; }
+  .rbig.rbig-mid  { background:#fffbeb; border-color:#fbbf24; color:#78350f; }
+  .rbig.rbig-high { background:#fef2f2; border-color:#f87171; color:#7f1d1d; }
+  .rbig-circle.rc-low  { background:#059669; color:#fff; }
+  .rbig-circle.rc-mid  { background:#d97706; color:#fff; }
+  .rbig-circle.rc-high { background:#dc2626; color:#fff; }
+  /* Canvas */
+  .cw { position:relative; height:220px; margin-top:4px; }
+  canvas { display:block; }
+
+  /* Algo grid */
+  .agrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .ac { background:var(--surf2); border-radius:12px; padding:14px 10px; text-align:center; border:1.5px solid var(--border2); transition:transform 0.2s; }
+  .ac:hover { transform:translateY(-2px); }
+  .an  { font-size:0.6rem; color:var(--muted); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:4px; font-weight:600; }
+  .av  { font-size:1.1rem; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+  .al2 { font-size:0.59rem; color:var(--muted); margin-top:2px; }
+  .acox .av{color:#93c5fd;} .arsf .av{color:#6ee7b7;} .axgb .av{color:#fca5a5;}
+  .ac.algo-sel { border-color:var(--blue2) !important; box-shadow:0 0 0 2px rgba(147,197,253,0.2); }
+  .acox.algo-sel { border-color:#93c5fd !important; box-shadow:0 0 0 2px rgba(147,197,253,0.2); }
+  .arsf.algo-sel { border-color:#6ee7b7 !important; box-shadow:0 0 0 2px rgba(110,231,183,0.2); }
+  .axgb.algo-sel { border-color:#fca5a5 !important; box-shadow:0 0 0 2px rgba(252,165,165,0.2); }
+  .algo-row { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .algo-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.61rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.09em; white-space:nowrap; }
+  .algo-btn { font-family:'IBM Plex Mono',monospace; font-size:0.70rem; padding:5px 13px; border-radius:20px; border:1.5px solid var(--border); background:var(--surf2); color:var(--dim); cursor:pointer; transition:all 0.18s; }
+  .algo-btn:hover { border-color:var(--blue2); color:var(--blue2); }
+  .algo-btn.ab-cox.ab-on { background:rgba(147,197,253,0.12); border-color:#93c5fd; color:#93c5fd; font-weight:600; }
+  .algo-btn.ab-rsf.ab-on { background:rgba(110,231,183,0.10); border-color:#6ee7b7; color:#6ee7b7; font-weight:600; }
+  .algo-btn.ab-xgb.ab-on { background:rgba(252,165,165,0.10); border-color:#fca5a5; color:#fca5a5; font-weight:600; }
+
+  /* Explainability */
+  .exp-bar   { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .exp-label { font-size:0.73rem; font-weight:500; color:var(--text); width:200px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .exp-track { flex:1; height:11px; background:var(--border2); border-radius:6px; overflow:hidden; }
+  .exp-fill-pos { height:100%; border-radius:6px; background:linear-gradient(90deg,#fca5a5,#dc2626); width:0%; transition:width 0.6s cubic-bezier(0.22,1,0.36,1); }
+  .exp-fill-neg { height:100%; border-radius:6px; background:linear-gradient(90deg,#6ee7b7,#059669); width:0%; transition:width 0.6s cubic-bezier(0.22,1,0.36,1); }
+  .exp-val { font-family:'IBM Plex Mono',monospace; font-size:0.67rem; font-weight:600; width:50px; text-align:right; flex-shrink:0; }
+  .exp-val.pos{color:#dc2626;} .exp-val.neg{color:#059669;}
+  .exp-legend { display:flex; gap:14px; margin-bottom:10px; font-size:0.68rem; color:var(--muted); }
+  .exp-legend span { display:flex; align-items:center; gap:5px; }
+  .leg-dot { width:10px; height:10px; border-radius:3px; }
+
+  /* Empty */
+  .empty { padding:48px 20px; text-align:center; color:var(--muted); font-size:0.84rem; }
+  .empty-icon { font-size:3rem; margin-bottom:12px; opacity:0.15; }
+
+  /* Disclaimer */
+  .disc { grid-column:1/-1; font-size:0.67rem; color:var(--muted); text-align:center; padding:12px 20px; line-height:1.7; background:var(--surface); border-radius:12px; border:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.04); }
+  .disc a { color:var(--blue); text-decoration:none; font-weight:500; }
+  .disc a:hover { text-decoration:underline; }
+
+  @media(max-width:900px){
+    .main{grid-template-columns:1fr;}
+    .sf{grid-template-columns:1fr;}
+    .mgrid{grid-template-columns:repeat(2,1fr);}
+    .nlr-inner{grid-template-columns:1fr;}
+  }
+
+  /* ── WHAT-IF SIMULATOR ───────────────────────────── */
+  .wi-intro { font-size:0.75rem; color:var(--dim); line-height:1.6; margin-bottom:14px; padding:10px 12px; background:var(--surf2); border-radius:6px; border-left:3px solid var(--blue); }
+  .wi-intro strong { color:var(--text); }
+  .wi-vars { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .wi-row { display:grid; grid-template-columns:180px 1fr 80px 36px; gap:8px; align-items:center; padding:7px 10px; border-radius:6px; background:var(--surf2); border:1px solid var(--border2); transition:background 0.15s; }
+  .wi-row:hover { background:#f0f4ff; }
+  .wi-row.wi-modified { background:#fffbeb; border-color:#fcd34d; }
+  .wi-label { font-size:0.74rem; font-weight:500; color:var(--text); line-height:1.3; }
+  .wi-label small { display:block; font-size:0.65rem; color:var(--muted); font-weight:400; }
+  .wi-slider { width:100%; height:4px; border-radius:4px; outline:none; cursor:pointer; accent-color:var(--blue); }
+  .wi-val { font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:3px 6px; text-align:center; width:80px; }
+  .wi-reset-btn { font-size:0.65rem; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; }
+  .wi-reset-btn:hover { border-color:var(--blue); color:var(--blue); }
+  .wi-sep { font-size:0.63rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; font-family:'IBM Plex Mono',monospace; padding:4px 0 2px; }
+  .wi-result { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .wi-card { border-radius:8px; padding:12px 14px; border:2px solid; }
+  .wi-card-lbl { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.08em; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; }
+  .wi-card-tier { font-size:1.0rem; font-weight:700; margin-bottom:4px; }
+  .wi-card-lp { font-family:'IBM Plex Mono',monospace; font-size:0.72rem; margin-bottom:8px; }
+  .wi-card-mort { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+  .wi-mort-cell { background:rgba(255,255,255,0.5); border-radius:4px; padding:5px 4px; text-align:center; }
+  .wi-mort-t { font-size:0.60rem; color:inherit; opacity:0.7; font-family:'IBM Plex Mono',monospace; }
+  .wi-mort-v { font-size:0.88rem; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+  .wi-card.tier-low  { background:#f0fdf4; border-color:#86efac; color:#14532d; }
+  .wi-card.tier-mid  { background:#fffbeb; border-color:#fcd34d; color:#78350f; }
+  .wi-card.tier-high { background:#fef2f2; border-color:#fca5a5; color:#7f1d1d; }
+  .wi-delta { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; background:var(--surf2); border:1px solid var(--border2); margin-bottom:12px; flex-wrap:wrap; }
+  .wi-delta-item { display:flex; flex-direction:column; align-items:center; flex:1; min-width:80px; }
+  .wi-delta-lbl { font-size:0.60rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; font-family:'IBM Plex Mono',monospace; }
+  .wi-delta-val { font-family:'IBM Plex Mono',monospace; font-size:0.88rem; font-weight:600; }
+  .wi-delta-val.neg { color:#059669; }
+  .wi-delta-val.pos { color:#dc2626; }
+  .wi-delta-val.neu { color:var(--muted); }
+  .wi-tier-arrow { font-size:1.4rem; color:var(--muted); }
+  .wi-tier-change { font-size:0.72rem; font-weight:600; padding:4px 10px; border-radius:12px; }
+  .wi-tier-change.improved { background:#dcfce7; color:#15803d; }
+  .wi-tier-change.same     { background:#f1f5f9; color:#64748b; }
+  .wi-tier-change.worse    { background:#fee2e2; color:#b91c1c; }
+  .wi-run-btn { width:100%; padding:10px; background:#1d4ed8; color:#fff; border:none; border-radius:6px; font-size:0.84rem; font-weight:600; cursor:pointer; letter-spacing:0.02em; transition:background 0.15s; margin-bottom:10px; }
+  .wi-run-btn:hover { background:#1e40af; }
+  .wi-reset-all { width:100%; padding:8px; background:var(--surf2); color:var(--dim); border:1px solid var(--border); border-radius:6px; font-size:0.78rem; cursor:pointer; transition:all 0.15s; }
+  .wi-reset-all:hover { border-color:#dc2626; color:#dc2626; }
+  .wi-disclaimer { font-size:0.62rem; color:var(--muted); line-height:1.6; margin-top:10px; padding:8px 10px; background:var(--surf2); border-radius:6px; }
+  .wi-contrib-bars { margin-top:10px; }
+  .wi-contrib-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+  .wi-contrib-lbl { font-size:0.68rem; color:var(--dim); width:160px; flex-shrink:0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+  .wi-contrib-track { flex:1; height:8px; background:var(--border2); border-radius:4px; overflow:hidden; position:relative; }
+  .wi-contrib-bar-orig { position:absolute; top:0; height:100%; border-radius:4px; opacity:0.35; }
+  .wi-contrib-bar-adj  { position:absolute; top:0; height:100%; border-radius:4px; }
+  .wi-contrib-val { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; width:44px; text-align:right; flex-shrink:0; }
+
+  /* AILA-ACT styles */
+  .act-tier-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;margin-bottom:12px;border:2px solid;}
+  .act-tier-bar.act-green{background:#f0fdf4;border-color:#4ade80;color:#14532d;}
+  .act-tier-bar.act-amber{background:#fffbeb;border-color:#fbbf24;color:#78350f;}
+  .act-tier-bar.act-red  {background:#fef2f2;border-color:#f87171;color:#7f1d1d;}
+  .act-tier-name{font-family:'IBM Plex Mono',monospace;font-size:1.05rem;font-weight:600;}
+  .act-tier-stat{font-size:0.72rem;opacity:.85;}
+  .act-phases{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
+  .act-phase{border-radius:7px;padding:10px 12px;border:1px solid;}
+  .act-phase-hdr{font-size:0.63rem;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:6px;}
+  .act-phase ul{list-style:none;padding:0;}
+  .act-phase ul li{font-size:0.72rem;padding:2px 0;display:flex;gap:5px;line-height:1.4;}
+  .act-phase ul li::before{content:"›";font-weight:600;flex-shrink:0;}
+  .act-phase.ph-adm{background:#eff6ff;border-color:#93c5fd;color:#1e3a5f;}
+  .act-phase.ph-adm .act-phase-hdr{color:#1d4ed8;}
+  .act-phase.ph-inh{background:#f0fdfa;border-color:#5eead4;color:#134e4a;}
+  .act-phase.ph-inh .act-phase-hdr{color:#0f766e;}
+  .act-phase.ph-dis{background:#faf5ff;border-color:#c4b5fd;color:#3b0764;}
+  .act-phase.ph-dis .act-phase-hdr{color:#7c3aed;}
+  .act-phase.ph-fup{background:#fff7ed;border-color:#fdba74;color:#431407;}
+  .act-phase.ph-fup .act-phase-hdr{color:#ea580c;}
+  .act-rev-title{font-size:0.72rem;font-weight:600;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;font-family:'IBM Plex Mono',monospace;}
+  .act-rev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;}
+  .act-rv{border-radius:6px;padding:7px 9px;border:1px solid;cursor:pointer;}
+  .act-rv:hover{opacity:.85;}
+  .act-rv-name{font-size:0.72rem;font-weight:600;}
+  .act-rv-tag{font-size:0.63rem;margin-top:1px;}
+  .act-rv-detail{font-size:0.68rem;line-height:1.55;margin-top:5px;display:none;padding-top:5px;border-top:1px solid rgba(0,0,0,.1);}
+  .act-rv-detail ul{list-style:none;padding:0;margin:0;}
+  .act-rv-detail ul li{padding:2px 0 2px 14px;position:relative;line-height:1.5;}
+  .act-rv-detail ul li::before{content:"›";position:absolute;left:0;font-weight:700;}
+  .act-rv-detail strong{font-weight:600;}
+  .act-rv-detail.open{display:block;}
+  .rv-high{background:#f0fdf4;border-color:#86efac;color:#14532d;}
+  .rv-high .act-rv-tag{color:#16a34a;}
+  .rv-modh{background:#fffbeb;border-color:#fcd34d;color:#78350f;}
+  .rv-modh .act-rv-tag{color:#d97706;}
+  .rv-mod{background:#fff7ed;border-color:#fdba74;color:#431407;}
+  .rv-mod .act-rv-tag{color:#ea580c;}
+  .rv-none{background:var(--surf2);border-color:var(--border);color:var(--muted);}
+  .act-flag{display:flex;align-items:flex-start;gap:7px;padding:8px 10px;border-radius:6px;font-size:0.70rem;line-height:1.5;margin-top:8px;}
+  .act-flag.flag-warn{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;}
+  .act-flag.flag-info{background:#eff6ff;border:1px solid #93c5fd;color:#1e3a5f;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-center">
+    <div class="htitle">AILA</div>
+    <div class="hpaper">An Artificial Intelligence Layered Architecture for Dynamic, Explainable and Actionable Mortality Risk Prediction in Cardiovascular Patients</div>
+    <div class="hsub">All-cause mortality after cardiovascular hospitalisation</div>
+  </div>
+  <div class="bdgs">
+    <span class="bdg">External Validation</span>
+    <span class="bdg">Cox · RSF · XGBoost</span>
+    <span class="bdg">TRIPOD+AI 2024</span>
+    <span class="bdg">No data transmitted</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- MODEL SELECTOR -->
+  <div class="msel">
+    <div class="msel-lbl">Select prediction model</div>
+    <div class="tabs">
+      <button class="tab" onclick="sel('admission')" id="tab-admission">AILA-Admission — 7 variables</button>
+      <button class="tab" onclick="sel('discharge')" id="tab-discharge">AILA-Discharge — 11 variables</button>
+      <button class="tab" onclick="sel('max')"       id="tab-max">AILA-Max — 15 variables</button>
+    </div>
+    <div class="ibar">
+      <span class="ibar-name" id="iname"></span>
+      <span class="ibar-desc" id="idesc"></span>
+      <span class="chip chip-cox" id="icox"></span>
+      <span class="chip chip-rsf" id="irsf"></span>
+      <span class="chip chip-xgb" id="ixgb"></span>
+    </div>
+    <div class="algo-row">
+      <span class="algo-lbl">Algorithm:</span>
+      <button class="algo-btn ab-cox ab-on" id="ab-cox" onclick="setAlgo('cox')">Cox PH</button>
+      <button class="algo-btn ab-rsf"       id="ab-rsf" onclick="setAlgo('rsf')">RSF</button>
+      <button class="algo-btn ab-xgb"       id="ab-xgb" onclick="setAlgo('xgb')">XGBoost AFT</button>
+      <span style="font-size:0.60rem;color:var(--muted);margin-left:4px" id="algo-note">Cox active — probabilities use Cox baseline survival</span>
+    </div>
+  </div>
+
+  <!-- INPUT FORM -->
+  <div>
+   <div class="fc">
+    <div style="height:4px;background:linear-gradient(90deg,var(--adm),#60a5fa,var(--dis));border-radius:14px 14px 0 0" id="fc-accent"></div>
+    <div class="errmsg" id="errmsg"></div>
+
+    <!-- SECTION A: Admission data — all models -->
+    <div class="fsec">
+      <div class="sh"><div class="sdot sdot-adm"></div><div class="sname">Admission Data</div><div class="stag">All models</div></div>
+      <div class="sf">
+        <div class="fld"><label class="lbl">Age <span class="u">years</span></label><input class="inp" id="Age" type="number" min="18" max="110" placeholder="e.g. 72"></div>
+        <div class="fld"><label class="lbl">eGFR at admission <span class="u">ml/min/1.73m²</span></label><input class="inp" id="eGFR_ADM" type="number" min="0" max="150" step="0.1" placeholder="e.g. 58"></div>
+        <div class="fld"><label class="lbl">Haemoglobin at admission <span class="u">g/dL</span></label><input class="inp" id="HBadm" type="number" min="3" max="22" step="0.1" placeholder="e.g. 12.5"></div>
+        <div class="fld"><label class="lbl">HF Presence and Subtype</label>
+          <select class="inp" id="HFplusLVEF_Simplified">
+            <option value="">Select...</option>
+            <option value="0">No heart failure</option>
+            <option value="1">HF with mildly reduced or preserved EF — HFmrEF / HFpEF (EF ≥40%)</option>
+            <option value="2">HF with reduced EF — HFrEF (EF &lt;40%)</option>
+          </select>
+        </div>
+        <div class="fld"><label class="lbl">Moderate/Severe valvular heart disease</label>
+          <select class="inp" id="SIGNIFICANTsinglemultiVHD">
+            <option value="">Select...</option>
+            <option value="0">No significant VHD</option>
+            <option value="1">Single valve</option>
+            <option value="2">Multivalvular</option>
+          </select>
+        </div>
+        <div class="fld"><label class="lbl">Diabetes mellitus</label>
+          <select class="inp" id="DM"><option value="">Select...</option><option value="0">No</option><option value="1">Yes</option></select>
+        </div>
+        <div class="fld"><label class="lbl">Lung disease <span class="u">COPD or other</span></label>
+          <select class="inp" id="LungDisease"><option value="">Select...</option><option value="0">No</option><option value="1">Yes</option></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION B: Discharge data — Discharge + Max -->
+    <div class="fsec" id="sec-dis" style="display:none">
+      <div class="sh"><div class="sdot sdot-dis"></div><div class="sname">Discharge Data</div><div class="stag">AILA-Discharge · AILA-Max</div></div>
+      <div class="sf">
+        <div class="fld"><label class="lbl">Haemoglobin at discharge <span class="u">g/dL</span></label><input class="inp" id="HBdis" type="number" min="3" max="22" step="0.1" placeholder="e.g. 11.5"></div>
+        <div class="fld"><label class="lbl">Discharge diagnosis</label>
+          <select class="inp" id="DischargeCatGen_fixed">
+            <option value="">Select...</option>
+            <option value="1">HF / Valvular / Pulmonary hypertension</option>
+            <option value="2">Coronary artery disease</option>
+            <option value="3">Arrhythmia</option>
+            <option value="4">Other cardiac diagnosis</option>
+          </select>
+        </div>
+        <div class="fld"><label class="lbl">Duration of hospitalisation <span class="u">days</span></label><input class="inp" id="Durationofhospitalizationdays" type="number" min="1" max="365" placeholder="e.g. 7"></div>
+        <!-- NLR row -->
+        <div class="fld nlr-row">
+          <label class="lbl">NLR at discharge — enter ratio directly <span class="u">or</span> calculate from Neutrophils / Lymphocytes</label>
+          <input class="inp" id="NLR_direct" type="number" min="0" step="0.01" placeholder="NLR ratio (e.g. 4.2)" oninput="nlrDirect()">
+          <div class="nlr-sep">or calculate from components:</div>
+          <div class="nlr-inner">
+            <div class="fld"><label class="lbl">Neutrophils <span class="u">×10⁹/L</span></label><input class="inp" id="Neutrophils" type="number" min="0" step="0.01" placeholder="e.g. 7.2" oninput="nlrCalc()"></div>
+            <div class="fld"><label class="lbl">Lymphocytes <span class="u">×10⁹/L</span></label><input class="inp" id="Lymphocytes" type="number" min="0" step="0.01" placeholder="e.g. 1.8" oninput="nlrCalc()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION C: Full data with biomarkers — Max only -->
+    <div class="fsec" id="sec-max" style="display:none">
+      <div class="sh"><div class="sdot sdot-max"></div><div class="sname">Full Data with Biomarkers</div><div class="stag">AILA-Max only</div></div>
+      <div class="sf">
+        <div class="fld">
+          <label class="lbl">BUN at admission <span class="u">mg/dL</span></label>
+          <input class="inp" id="URadm" type="number" min="0" max="500" step="0.1" placeholder="BUN mg/dL (e.g. 45)" oninput="bunAdmInput()">
+          <label class="lbl" style="margin-top:4px">Or enter Urea <span class="u">mmol/L — auto-converts to BUN</span></label>
+          <input class="inp" id="Urea_adm" type="number" min="0" step="0.1" placeholder="Urea mmol/L (e.g. 16)" oninput="ureaToAdm()">
+        </div>
+        <div class="fld">
+          <label class="lbl">BUN at discharge <span class="u">mg/dL</span></label>
+          <input class="inp" id="URdis" type="number" min="0" max="500" step="0.1" placeholder="BUN mg/dL (e.g. 38)" oninput="bunDisInput()">
+          <label class="lbl" style="margin-top:4px">Or enter Urea <span class="u">mmol/L — auto-converts to BUN</span></label>
+          <input class="inp" id="Urea_dis" type="number" min="0" step="0.1" placeholder="Urea mmol/L (e.g. 14)" oninput="ureToDis()">
+        </div>
+        <div class="fld"><label class="lbl">NT-proBNP <span class="u">pg/mL</span></label><input class="inp" id="NTproBNP" type="number" min="0" placeholder="e.g. 1200" oninput="onNTproBNP()"></div>
+        <div class="fld"><label class="lbl">BNP <span class="u">pg/mL — only if NT-proBNP unavailable</span></label><input class="inp" id="BNP" type="number" min="0" placeholder="e.g. 350" oninput="onBNP()"></div>
+        <div class="fld"><label class="lbl">Albumin at admission <span class="u">g/dL</span></label><input class="inp" id="ALBUMINadm" type="number" min="1" max="6" step="0.1" placeholder="blank = median (4.0 g/dL)"></div>
+        <div class="note">Enter NT-proBNP <strong>or</strong> BNP — not both. Leave NP blank to use population median. Leave Albumin blank to use median (4.0 g/dL).</div>
+      </div>
+    </div>
+
+    <button class="calc-btn" onclick="calculate()">Calculate Mortality Risk</button>
+   </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-col">
+    <div class="panel init" id="empty-panel">
+      <div class="empty"><div class="empty-icon">⚕</div>Select a model, enter patient values,<br>and press Calculate</div>
+    </div>
+    <div class="panel" id="risk-panel" style="display:none">
+      <div class="ph">⚕ Risk Stratification &amp; Predicted Mortality</div>
+      <div class="pb">
+        <div id="risk-badge"></div>
+        <div id="rp-container" class="rp-wrap"></div>
+        <div class="mgrid" id="mgrid"></div>
+      </div>
+    </div>
+    <div class="panel" id="curve-panel" style="display:none">
+      <div class="ph">📈 Predicted Survival Curve (<span id="curve-algo-label">Cox</span> model)</div>
+      <div class="pb"><div class="cw"><canvas id="surv-canvas"></canvas></div></div>
+    </div>
+    <div class="panel" id="algo-panel" style="display:none">
+      <div class="ph">📊 Algorithm Performance — External Validation C-index</div>
+      <div class="pb">
+        <div class="agrid" id="agrid"></div>
+        <div style="font-size:0.63rem;color:var(--muted);margin-top:10px;line-height:1.6">
+          C-index shown for external validation (N=8,234) · Derivation shown below label (N=15,737). Survival curve uses Cox elastic-net. Mortality at 1, 3 and 5 years uses logistic recalibration. 10-year estimate uses raw Cox. RSF = 100-tree Random Survival Forest. XGBoost = AFT objective.
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="exp-panel" style="display:none">
+      <div class="ph">🔍 Variable Contributions to Risk</div>
+      <div class="pb">
+        <div class="exp-legend">
+          <span><span class="leg-dot" style="background:#dc2626"></span>Increases risk</span>
+          <span><span class="leg-dot" style="background:#059669"></span>Decreases risk</span>
+        </div>
+        <div id="exp-bars"></div>
+        <div style="font-size:0.63rem;color:var(--muted);margin-top:8px;line-height:1.6">
+          Bar length shows each variable's contribution to the linear predictor relative to the population mean. Positive = above-average risk contribution.
+        </div>
+      </div>
+    </div>
+
+    <!-- WHAT-IF SIMULATOR PANEL -->
+    <div class="panel" id="wi-panel" style="display:none">
+      <div class="ph" id="wi-panel-title">🔬 What-If Simulator — Adjust Variables, See Risk Change</div>
+      <div class="pb">
+        <div class="wi-intro">
+          <strong>How to use:</strong> The patient's values are pre-loaded from your calculation.
+          Adjust any modifiable variable using the sliders or by typing a new value.
+          The simulator recomputes the AILA-Max risk tier and mortality estimates in real time.
+          <br><br>
+          <strong>Important:</strong> LP shifts are model-based projections assuming the associative relationship between predictor and outcome. They are not causal treatment effect estimates.
+        </div>
+        <div id="wi-vars-container"></div>
+        <button class="wi-run-btn" onclick="wiRecalculate()">↻ Update Risk Estimate</button>
+        <div id="wi-result-container" style="display:none">
+          <div class="wi-delta" id="wi-delta"></div>
+          <div class="wi-result" id="wi-result"></div>
+          <div style="font-size:0.72rem;font-weight:600;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace;">Variable contributions — original vs adjusted</div>
+          <div class="wi-contrib-bars" id="wi-contrib-bars"></div>
+        </div>
+        <button class="wi-reset-all" onclick="wiResetAll()">Reset all variables to original values</button>
+        <div class="wi-disclaimer" id="wi-disclaimer-text">
+          This simulator uses the selected AILA model Cox predictions. LP shifts are model-based projections — not causal treatment effect estimates. For research and educational use only. Does not replace clinical judgement.
+        </div>
+      </div>
+    </div>
+
+    <!-- AILA-ACT PANEL -->
+    <div class="panel" id="act-panel" style="display:none">
+      <div class="ph">🏥 AILA-ACT — Clinical Action Framework</div>
+      <div class="pb" id="act-content"></div>
+    </div>
+  </div>
+
+  <div class="disc">
+    <strong>Clinical disclaimer:</strong> Research and decision support only — does not replace clinical judgement. All computations run locally — no patient data is transmitted.<br>
+    <strong>Reference:</strong> Samaras A et al. [manuscript in preparation] ·
+    GitHub: <a href="https://athsamaras.github.io/aila-calculator" target="_blank">athsamaras.github.io/aila-calculator</a>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MODEL PARAMETERS — extracted from Python pipeline v3
+// ═══════════════════════════════════════════════════════════════
+const M = {
+  admission: {
+    label: 'AILA-Admission',
+    color: '#2563eb',
+    desc:  'Universal admission tool — 7 variables, any setting',
+    vars:  ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+            'eGFR_ADM','HBadm','DM','LungDisease'],
+    coefs: {Age:0.599194,HFplusLVEF_Simplified:0.3019828,SIGNIFICANTsinglemultiVHD:0.117668,eGFR_ADM:-0.2594413,HBadm:-0.1718289,DM:0.0788165,LungDisease:0.108693},
+    mean:  {Age:68.9493233,HFplusLVEF_Simplified:0.6398932,SIGNIFICANTsinglemultiVHD:0.31696,eGFR_ADM:74.4334671,HBadm:12.8673662,DM:0.27985,LungDisease:0.0833704},
+    scale: {Age:14.6452378,HFplusLVEF_Simplified:0.8359144,SIGNIFICANTsinglemultiVHD:0.6423354,eGFR_ADM:23.9554918,HBadm:1.821154,DM:0.4489254,LungDisease:0.2764413},
+    bs:  {1:0.9079545,2:0.8546887,3:0.8012286,4:0.7527971,5:0.7054335,6:0.6531994,7:0.6088032,8:0.5622483,9:0.5178565,10:0.4741581},
+    bs_rsf:{1:0.9102,2:0.8571,3:0.8034,4:0.7548,5:0.7073,6:0.6549,7:0.6104,8:0.5636,9:0.5190,10:0.4752},
+    bs_xgb:{1:0.9088,2:0.8557,3:0.8021,4:0.7535,5:0.7061,6:0.6537,7:0.6092,8:0.5625,9:0.5180,10:0.4744},
+    rc:  {1:{a:0.2007208,b:1.1614194},3:{a:-0.2139105,b:1.0643448},5:{a:-0.52013,b:0.9775093}},
+    t33: -0.465777, t67: 0.522771,
+    ci:  {cox:0.767,rsf:0.771,xgb:0.770, cox_d:0.768,rsf_d:0.787,xgb_d:0.790}
+  },
+  discharge: {
+    label: 'AILA-Discharge',
+    color: '#0891b2',
+    desc:  'Universal discharge tool — 11 variables, all centres',
+    vars:  ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+            'eGFR_ADM','HBadm','DM','LungDisease',
+            'HBdis','log_NLRdis','DischargeCatGen_fixed',
+            'log_Durationofhospitalizationdays'],
+    coefs: {Age:0.5752206,HFplusLVEF_Simplified:0.2295191,SIGNIFICANTsinglemultiVHD:0.0923561,eGFR_ADM:-0.2031254,HBadm:-0.0776194,DM:0.0736511,LungDisease:0.0907111,HBdis:-0.0763352,log_NLRdis:0.1526177,DischargeCatGen_fixed:0.1429741,log_Durationofhospitalizationdays:0.078117},
+    mean:  {Age:68.9493233,HFplusLVEF_Simplified:0.6398932,SIGNIFICANTsinglemultiVHD:0.31696,eGFR_ADM:74.4334671,HBadm:12.8673662,DM:0.27985,LungDisease:0.0833704,HBdis:12.8822598,log_NLRdis:0.9743185,DischargeCatGen_fixed:2.4048421,log_Durationofhospitalizationdays:1.5773967},
+    scale: {Age:14.6452378,HFplusLVEF_Simplified:0.8359144,SIGNIFICANTsinglemultiVHD:0.6423354,eGFR_ADM:23.9554918,HBadm:1.821154,DM:0.4489254,LungDisease:0.2764413,HBdis:1.724934,log_NLRdis:0.4638761,DischargeCatGen_fixed:1.2208539,log_Durationofhospitalizationdays:0.7481526},
+    bs:  {1:0.9094464,2:0.8563983,3:0.8029466,4:0.7543661,5:0.7066726,6:0.6539204,7:0.6090328,8:0.5614779,9:0.5164527,10:0.4728797},
+    bs_rsf:{1:0.9118,2:0.8589,3:0.8054,4:0.7567,5:0.7090,6:0.6561,7:0.6111,8:0.5634,9:0.5182,10:0.4742},
+    bs_xgb:{1:0.9103,2:0.8575,3:0.8040,4:0.7553,5:0.7077,6:0.6549,7:0.6099,8:0.5622,9:0.5171,10:0.4732},
+    rc:  {1:{a:0.2489852,b:1.1948676},3:{a:-0.2062687,b:1.0700269},5:{a:-0.5183122,b:0.9730494}},
+    t33: -0.5006933, t67: 0.5336887,
+    ci:  {cox:0.778,rsf:0.780,xgb:0.779, cox_d:0.776,rsf_d:0.799,xgb_d:0.805}
+  },
+  max: {
+    label: 'AILA-Max',
+    color: '#d97706',
+    desc:  'Discharge + full biomarkers — 15 variables, maximum performance',
+    vars:  ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+            'eGFR_ADM','HBadm','DM','LungDisease',
+            'HBdis','log_NLRdis','DischargeCatGen_fixed',
+            'log_Durationofhospitalizationdays',
+            'URadm','URdis','log_NP_combined','ALBUMINadm'],
+    coefs: {Age:0.583764,HFplusLVEF_Simplified:0.2086399,SIGNIFICANTsinglemultiVHD:0.0860649,eGFR_ADM:-0.0794131,HBadm:-0.0374202,DM:0.0690709,LungDisease:0.0880673,HBdis:-0.081991,log_NLRdis:0.1266618,DischargeCatGen_fixed:0.1336168,log_Durationofhospitalizationdays:0.0667837,URadm:0.0646553,URdis:0.0845185,log_NP_combined:0.0540794,ALBUMINadm:-0.0889221},
+    mean:  {Age:68.9493233,HFplusLVEF_Simplified:0.6398932,SIGNIFICANTsinglemultiVHD:0.31696,eGFR_ADM:74.4334671,HBadm:12.8673662,DM:0.27985,LungDisease:0.0833704,HBdis:12.8822598,log_NLRdis:0.9743185,DischargeCatGen_fixed:2.4048421,log_Durationofhospitalizationdays:1.5773967,URadm:50.6621514,URdis:55.1141273,log_NP_combined:1.7975337,ALBUMINadm:3.9903794},
+    scale: {Age:14.6452378,HFplusLVEF_Simplified:0.8359144,SIGNIFICANTsinglemultiVHD:0.6423354,eGFR_ADM:23.9554918,HBadm:1.821154,DM:0.4489254,LungDisease:0.2764413,HBdis:1.724934,log_NLRdis:0.4638761,DischargeCatGen_fixed:1.2208539,log_Durationofhospitalizationdays:0.7481526,URadm:26.8027687,URdis:28.449735,log_NP_combined:1.1061855,ALBUMINadm:0.3273508},
+    bs:  {1:0.9098838,2:0.8566941,3:0.803003,4:0.7542746,5:0.7064114,6:0.6533301,7:0.6081834,8:0.5603493,9:0.5150322,10:0.4715315},
+    bs_rsf:{1:0.9121,2:0.8591,3:0.8054,4:0.7566,5:0.7088,6:0.6556,7:0.6104,8:0.5625,9:0.5171,10:0.4729},
+    bs_xgb:{1:0.9106,2:0.8577,3:0.8041,4:0.7553,5:0.7075,6:0.6544,7:0.6092,8:0.5613,9:0.5159,10:0.4717},
+    rc:  {1:{a:0.2325999,b:1.1873421},3:{a:-0.202591,b:1.0747105},5:{a:-0.5137569,b:0.9798407}},
+    t33: -0.5007911, t67: 0.5155366,
+    ci:  {cox:0.784,rsf:0.783,xgb:0.785, cox_d:0.781,rsf_d:0.801,xgb_d:0.814}
+  }
+};
+
+// Imputation medians (from derivation cohort)
+const NP_LOG_MEDIAN  = 1.843719;  // log(NP_xULN) — xULN units
+const NP_ULN_NT_PROBNP = 125;     // pg/mL ULN for NT-proBNP
+const NP_ULN_BNP       = 100;     // pg/mL ULN for BNP
+const ALB_MEDIAN     = 4.0;
+
+// SHAP labels for contribution bars
+const SHAP_LABELS = {
+  Age:                               'Age',
+  HFplusLVEF_Simplified:             'HF + EF category',
+  SIGNIFICANTsinglemultiVHD:         'Significant VHD',
+  eGFR_ADM:                          'eGFR (admission)',
+  HBadm:                             'Haemoglobin (admission)',
+  DM:                                'Diabetes mellitus',
+  LungDisease:                       'Lung disease',
+  HBdis:                             'Haemoglobin (discharge)',
+  log_NLRdis:                        'NLR (discharge)',
+  DischargeCatGen_fixed:             'Discharge diagnosis',
+  log_Durationofhospitalizationdays: 'Duration of hospitalisation',
+  URadm:                             'BUN (admission)',
+  URdis:                             'BUN (discharge)',
+  log_NP_combined:                   'Natriuretic peptide',
+  ALBUMINadm:                        'Albumin (admission)',
+};
+
+let cur = null;
+let curAlgo = 'cox'; // 'cox' | 'rsf' | 'xgb'
+
+// ── Model selection ───────────────────────────────────────────
+function sel(k) {
+  cur = k;
+  const m = M[k];
+  // Update accent bar colour
+  const accentCols={admission:'var(--adm),#60a5fa,var(--dis)',discharge:'var(--dis),#06b6d4,#0284c7',max:'var(--max),#f59e0b,#d97706'};
+  const accent=document.getElementById('fc-accent');
+  if(accent) accent.style.background=`linear-gradient(90deg,${accentCols[k]||accentCols.max})`;
+  ['admission','discharge','max'].forEach(x => {
+    document.getElementById('tab-'+x).className = 'tab';
+  });
+  document.getElementById('tab-'+k).className = 'tab active-'+k;
+  document.getElementById('iname').textContent = m.label;
+  document.getElementById('idesc').textContent = m.desc;
+  document.getElementById('icox').textContent  = 'Cox C='+m.ci.cox.toFixed(3);
+  document.getElementById('irsf').textContent  = 'RSF C='+m.ci.rsf.toFixed(3);
+  document.getElementById('ixgb').textContent  = 'XGB C='+m.ci.xgb.toFixed(3);
+  const showDis = (k === 'discharge' || k === 'max');
+  const showMax = (k === 'max');
+  document.getElementById('sec-dis').style.display = showDis ? 'block' : 'none';
+  document.getElementById('sec-max').style.display = showMax ? 'block' : 'none';
+}
+
+
+// ── Algorithm selector ────────────────────────────────────────
+function setAlgo(a) {
+  curAlgo = a;
+  ['cox','rsf','xgb'].forEach(x => {
+    const b = document.getElementById('ab-'+x);
+    if (b) b.classList.toggle('ab-on', x===a);
+  });
+  const notes = {
+    cox: 'Cox active — elastic-net proportional hazards',
+    rsf: 'RSF active — Random Survival Forest (100 trees)',
+    xgb: 'XGBoost active — Accelerated Failure Time objective'
+  };
+  const n = document.getElementById('algo-note');
+  if (n) n.textContent = notes[a] || '';
+  // Highlight active algo card if results already shown
+  document.querySelectorAll('.ac').forEach(el => el.classList.remove('algo-sel'));
+  const map = {cox:'acox',rsf:'arsf',xgb:'axgb'};
+  document.querySelectorAll('.'+map[a]).forEach(el => el.classList.add('algo-sel'));
+}
+// ── NLR helpers ───────────────────────────────────────────────
+function nlrDirect() {
+  document.getElementById('Neutrophils').value = '';
+  document.getElementById('Lymphocytes').value = '';
+}
+function nlrCalc() {
+  const n = parseFloat(document.getElementById('Neutrophils').value);
+  const l = parseFloat(document.getElementById('Lymphocytes').value);
+  if (!isNaN(n) && !isNaN(l) && l > 0) {
+    document.getElementById('NLR_direct').value = (n/l).toFixed(3);
+  } else {
+    document.getElementById('NLR_direct').value = '';
+  }
+}
+function getNLR() {
+  const d = parseFloat(document.getElementById('NLR_direct').value);
+  return !isNaN(d) ? d : NaN;
+}
+
+// ── Urea ↔ BUN conversion (Urea mmol/L × 2.8 = BUN mg/dL) ──
+function ureaToAdm() {
+  const u = parseFloat(document.getElementById('Urea_adm').value);
+  document.getElementById('URadm').value = (!isNaN(u) && u > 0)
+    ? (u * 2.8).toFixed(1) : '';
+}
+function ureToDis() {
+  const u = parseFloat(document.getElementById('Urea_dis').value);
+  document.getElementById('URdis').value = (!isNaN(u) && u > 0)
+    ? (u * 2.8).toFixed(1) : '';
+}
+function bunAdmInput() {
+  // Clear Urea field when BUN entered directly
+  document.getElementById('Urea_adm').value = '';
+}
+function bunDisInput() {
+  document.getElementById('Urea_dis').value = '';
+}
+
+function onNTproBNP() {
+  const val = document.getElementById('NTproBNP').value;
+  const bnp = document.getElementById('BNP');
+  if (val !== '') {
+    bnp.value = '';
+    bnp.disabled = true;
+    bnp.style.background = 'var(--border2)';
+    bnp.style.color = 'var(--muted)';
+  } else {
+    bnp.disabled = false;
+    bnp.style.background = '';
+    bnp.style.color = '';
+  }
+}
+function onBNP() {
+  const val = document.getElementById('BNP').value;
+  const ntp = document.getElementById('NTproBNP');
+  if (val !== '') {
+    ntp.value = '';
+    ntp.disabled = true;
+    ntp.style.background = 'var(--border2)';
+    ntp.style.color = 'var(--muted)';
+  } else {
+    ntp.disabled = false;
+    ntp.style.background = '';
+    ntp.style.color = '';
+  }
+}
+
+function gv(id) { return parseFloat(document.getElementById(id).value); }
+
+// ── Get raw inputs ────────────────────────────────────────────
+function getInp(k) {
+  const i = {};
+  i.Age                       = gv('Age');
+  i.HFplusLVEF_Simplified     = gv('HFplusLVEF_Simplified');
+  i.SIGNIFICANTsinglemultiVHD = gv('SIGNIFICANTsinglemultiVHD');
+  i.eGFR_ADM                  = gv('eGFR_ADM');
+  i.HBadm                     = gv('HBadm');
+  i.DM                        = gv('DM');
+  i.LungDisease               = gv('LungDisease');
+
+  if (k === 'discharge' || k === 'max') {
+    i.HBdis                             = gv('HBdis');
+    i.DischargeCatGen_fixed             = gv('DischargeCatGen_fixed');
+    const dur                           = gv('Durationofhospitalizationdays');
+    i.log_Durationofhospitalizationdays = (!isNaN(dur) && dur > 0)
+                                          ? Math.log(dur) : NaN;
+    const nlr  = getNLR();
+    i.log_NLRdis = (!isNaN(nlr) && nlr > 0) ? Math.log(nlr) : NaN;
+  }
+
+  if (k === 'max') {
+    i.URadm    = gv('URadm');
+    i.URdis    = gv('URdis');
+    // NP: convert pg/mL to xULN, then log
+    const ntp  = gv('NTproBNP');
+    const bnp  = gv('BNP');
+    let npXuln = NaN;
+    if (!isNaN(ntp) && ntp > 0)      npXuln = ntp / NP_ULN_NT_PROBNP;
+    else if (!isNaN(bnp) && bnp > 0) npXuln = bnp / NP_ULN_BNP;
+    i.log_NP_combined = (!isNaN(npXuln) && npXuln > 0)
+                        ? Math.log(npXuln) : NP_LOG_MEDIAN;
+    const alb  = gv('ALBUMINadm');
+    i.ALBUMINadm = (!isNaN(alb) && alb > 0) ? alb : ALB_MEDIAN;
+  }
+  return i;
+}
+
+// ── Validation ────────────────────────────────────────────────
+function validate(k, i) {
+  const REQ = {
+    admission: ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+                'eGFR_ADM','HBadm','DM','LungDisease'],
+    discharge: ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+                'eGFR_ADM','HBadm','DM','LungDisease',
+                'HBdis','log_NLRdis','DischargeCatGen_fixed',
+                'log_Durationofhospitalizationdays'],
+    max:       ['Age','HFplusLVEF_Simplified','SIGNIFICANTsinglemultiVHD',
+                'eGFR_ADM','HBadm','DM','LungDisease',
+                'HBdis','log_NLRdis','DischargeCatGen_fixed',
+                'log_Durationofhospitalizationdays',
+                'URadm','URdis'],
+  };
+  const LBL = {
+    Age:'Age', HFplusLVEF_Simplified:'HF + EF Category',
+    SIGNIFICANTsinglemultiVHD:'Valvular disease',
+    eGFR_ADM:'eGFR (admission)', HBadm:'Haemoglobin (admission)',
+    DM:'Diabetes', LungDisease:'Lung disease',
+    HBdis:'Haemoglobin (discharge)', log_NLRdis:'NLR (discharge)',
+    DischargeCatGen_fixed:'Discharge diagnosis',
+    log_Durationofhospitalizationdays:'Duration of hospitalisation',
+    URadm:'BUN (admission)', URdis:'BUN (discharge)',
+  };
+  const miss = REQ[k].filter(v => isNaN(i[v]));
+  return miss.length ? 'Please enter: '+miss.map(v=>LBL[v]||v).join(', ') : null;
+}
+
+// ── Cox math ──────────────────────────────────────────────────
+function computeLP(k, i) {
+  const m = M[k];
+  let lp = 0;
+  for (const v of m.vars)
+    lp += m.coefs[v] * (i[v] - m.mean[v]) / m.scale[v];
+  return lp;
+}
+function survAtT(k, lp, t) {
+  const bsKey = curAlgo==='rsf' ? 'bs_rsf' : curAlgo==='xgb' ? 'bs_xgb' : 'bs';
+  const bs = M[k][bsKey] || M[k].bs;
+  return Math.pow(bs[t], Math.exp(lp));
+}
+function recalibrate(k, surv, t) {
+  const rc = M[k].rc[t];
+  if (!rc) return 1 - surv;
+  const p = Math.min(Math.max(1-surv, 1e-7), 1-1e-7);
+  return 1 / (1 + Math.exp(-(rc.a + rc.b * Math.log(p/(1-p)))));
+}
+
+// ── Variable contributions ────────────────────────────────────
+function getContribs(k, i) {
+  const m = M[k];
+  const out = [];
+  for (const v of m.vars) {
+    if (!(v in SHAP_LABELS)) continue;
+    const contrib = m.coefs[v] * (i[v] - m.mean[v]) / m.scale[v];
+    out.push({ v, label: SHAP_LABELS[v], c: contrib });
+  }
+  out.sort((a,b) => Math.abs(b.c) - Math.abs(a.c));
+  return out;
+}
+
+// ── Panel animation ───────────────────────────────────────────
+function showPanel(id, delay) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    el.style.display = 'block';
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      el.classList.add('visible')
+    ));
+  }, delay);
+}
+
+// ── Main calculate ────────────────────────────────────────────
+function calculate() {
+  const em = document.getElementById('errmsg');
+  em.style.display = 'none';
+  if (!cur) {
+    em.textContent = 'Please select a model first.';
+    em.style.display = 'block';
+    return;
+  }
+  const i   = getInp(cur);
+  const err = validate(cur, i);
+  if (err) { em.textContent = err; em.style.display = 'block'; return; }
+
+  const m  = M[cur];
+  const lp = computeLP(cur, i);
+
+  let rg, rc_class, ri;
+  if      (lp <= m.t33) { rg='Low Risk';          rc_class='rbadge-low';  ri='▼'; }
+  else if (lp <= m.t67) { rg='Intermediate Risk'; rc_class='rbadge-mid';  ri='◆'; }
+  else                   { rg='High Risk';         rc_class='rbadge-high'; ri='▲'; }
+
+  const s1  = survAtT(cur,lp,1);
+  const s3  = survAtT(cur,lp,3);
+  const s5  = survAtT(cur,lp,5);
+  const s10 = survAtT(cur,lp,10);
+  const m1  = recalibrate(cur,s1,1)*100;
+  const m3  = recalibrate(cur,s3,3)*100;
+  const m5  = recalibrate(cur,s5,5)*100;
+  const m10 = (1-s10)*100;
+
+  const sc = {};
+  for (let t=1; t<=10; t++) sc[t] = survAtT(cur,lp,t)*100;
+
+  const fmt = v => v<1?'<1%':v>99?'>99%':v.toFixed(1)+'%';
+  const c3  = (v,a,b) => v>b?'var(--high)':v>a?'var(--mid)':'var(--low)';
+
+  document.getElementById('empty-panel').style.display = 'none';
+  ['risk-panel','curve-panel','algo-panel','exp-panel','act-panel','wi-panel'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.display = 'none';
+    el.classList.remove('visible');
+  });
+
+  // ── Big risk badge ──
+  const bigCls  = lp<=m.t33?'rbig-low':lp<=m.t67?'rbig-mid':'rbig-high';
+  const circCls = lp<=m.t33?'rc-low':lp<=m.t67?'rc-mid':'rc-high';
+  const bigDesc = lp<=m.t33
+    ? 'Low risk tier — annual follow-up. Optimise modifiable risk factors. See calculated value below.'
+    : lp<=m.t67
+    ? 'Intermediate risk tier — enhanced follow-up. Active optimisation required. See calculated value below.'
+    : 'High risk tier — senior review within 4h. Structured pre-discharge checklist mandatory. See calculated value below.';
+
+  const circLabel = lp<=m.t33
+    ? '<span style="font-size:0.72rem;line-height:1.25">LOW<br>RISK</span>'
+    : lp<=m.t67
+    ? '<span style="font-size:0.62rem;line-height:1.25">INTER-<br>MEDIATE<br>RISK</span>'
+    : '<span style="font-size:0.72rem;line-height:1.25">HIGH<br>RISK</span>';
+
+  const curTier = lp<=m.t33?'low':lp<=m.t67?'mid':'high';
+
+  // Threshold table: Range + Avg + 5-yr avg. Data from Table 5/6 (AILA-Max, N=8,234)
+  const threshTable = `
+    <div style="min-width:250px;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;font-size:0.72rem;">
+      <div style="padding:7px 12px;background:var(--surf2);font-family:'IBM Plex Mono',monospace;font-size:0.60rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);border-bottom:1px solid var(--border)">Risk thresholds</div>
+      <div style="padding:3px 12px 3px 30px;background:var(--surf2);font-size:0.58rem;color:var(--muted);border-bottom:1px solid var(--border2);display:flex;gap:4px">
+        <span style="flex:1"></span>
+        <span style="width:76px;text-align:center;font-family:'IBM Plex Mono',monospace">1-yr 95% CI</span>
+        <span style="width:46px;text-align:center;font-family:'IBM Plex Mono',monospace">1-yr avg</span>
+        <span style="width:44px;text-align:center;font-family:'IBM Plex Mono',monospace;opacity:0.65">5-yr avg</span>
+      </div>
+      <div style="padding:6px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border2)${curTier==='low'?';background:rgba(52,211,153,0.08);border-left:3px solid #34d399;font-weight:700':''}">
+        <div style="width:9px;height:9px;border-radius:50%;background:#059669;flex-shrink:0"></div>
+        <div style="flex:1;color:var(--text)">Low</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#059669;font-size:0.67rem;width:76px;text-align:center">1.0–2.0%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#059669;font-weight:700;font-size:0.70rem;width:46px;text-align:center">1.4%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#059669;font-size:0.64rem;opacity:0.7;width:44px;text-align:center">6.4%</div>
+      </div>
+      <div style="padding:6px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border2)${curTier==='mid'?';background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;font-weight:700':''}">
+        <div style="width:9px;height:9px;border-radius:50%;background:#d97706;flex-shrink:0"></div>
+        <div style="flex:1;color:var(--text)">Intermediate</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#d97706;font-size:0.67rem;width:76px;text-align:center">6.9–8.8%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#d97706;font-weight:700;font-size:0.70rem;width:46px;text-align:center">7.8%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#d97706;font-size:0.64rem;opacity:0.7;width:44px;text-align:center">29.0%</div>
+      </div>
+      <div style="padding:6px 12px;display:flex;align-items:center;gap:6px${curTier==='high'?';background:rgba(248,113,113,0.09);border-left:3px solid #f87171;font-weight:700':''}">
+        <div style="width:9px;height:9px;border-radius:50%;background:#dc2626;flex-shrink:0"></div>
+        <div style="flex:1;color:var(--text)">High</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#dc2626;font-size:0.67rem;width:76px;text-align:center">30.0–33.5%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#dc2626;font-weight:700;font-size:0.70rem;width:46px;text-align:center">31.7%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;color:#dc2626;font-size:0.64rem;opacity:0.7;width:44px;text-align:center">65.9%</div>
+      </div>
+      <div style="padding:5px 12px;background:var(--surf2);font-size:0.57rem;color:var(--muted);border-top:1px solid var(--border2);line-height:1.5">
+        Tiers = LP tertiles (N=15,737) · Avg = KM estimate · 95% CI by Greenwood's formula
+      </div>
+    </div>`;
+
+  document.getElementById('risk-badge').innerHTML =
+    `<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+      <div class="rbig ${bigCls}" style="flex:1;min-width:280px">
+        <div class="rbig-circle ${circCls}">${circLabel}</div>
+        <div class="rbig-text">
+          <h3>${ri} ${rg}</h3>
+          <p>${bigDesc}</p>
+          <div class="rbig-lp" style="display:none"></div>
+        </div>
+      </div>
+      ${threshTable}
+    </div>`;
+
+  // ── Risk position bar ──
+  const LP_MIN=-2.2, LP_MAX=2.2;
+  const clampPct = v => Math.min(Math.max(v, 1), 99);
+  const pct    = clampPct((lp    - LP_MIN) / (LP_MAX - LP_MIN) * 100);
+  const t33pct = clampPct((m.t33 - LP_MIN) / (LP_MAX - LP_MIN) * 100);
+  const t67pct = clampPct((m.t67 - LP_MIN) / (LP_MAX - LP_MIN) * 100);
+  const curTierForBar = lp<=m.t33?'low':lp<=m.t67?'mid':'high';
+
+  // Grey transition zones ±2.5% around each threshold
+  const gw = 2.5;
+  const g1a = Math.max(t33pct - gw, 0).toFixed(2);
+  const g1b = Math.min(t33pct + gw, 100).toFixed(2);
+  const g2a = Math.max(t67pct - gw, 0).toFixed(2);
+  const g2b = Math.min(t67pct + gw, 100).toFixed(2);
+
+  // Gradient: solid zones with grey bands at LP thresholds
+  const gradStyle = `linear-gradient(90deg,
+    #059669 0%, #059669 ${g1a}%,
+    #6b7280 ${g1a}%, #6b7280 ${g1b}%,
+    #d97706 ${g1b}%, #d97706 ${g2a}%,
+    #6b7280 ${g2a}%, #6b7280 ${g2b}%,
+    #dc2626 ${g2b}%, #dc2626 100%)`;
+
+  document.getElementById('rp-container').innerHTML = `
+    <div class="rp-title" style="margin-top:14px">
+      <span style="color:var(--muted);font-size:0.82rem">Patient 1-year risk:</span>
+      <strong style="font-family:'IBM Plex Mono',monospace;font-size:1.15rem;color:${lp<=m.t33?'var(--low)':lp<=m.t67?'var(--mid)':'var(--high)'}">${fmt(m1)}</strong>
+      <span style="color:var(--border);font-size:0.9rem">·</span>
+      <span style="color:var(--muted);font-size:0.82rem">5-year risk:</span>
+      <strong style="font-family:'IBM Plex Mono',monospace;font-size:1.15rem;color:${lp<=m.t33?'var(--low)':lp<=m.t67?'var(--mid)':'var(--high)'}">${fmt(m5)}</strong>
+    </div>
+    <div style="position:relative;margin-bottom:14px">
+      <div class="rp-bar-outer" style="background:${gradStyle}">
+        <div class="rp-needle" style="left:${pct}%"></div>
+      </div>
+    </div>
+    <div class="rp-tiers">
+      <div class="rp-tier-chip chip-low${curTierForBar==='low'?' active':''}">
+        <div class="rp-dot" style="background:#059669"></div>
+        <div><strong>GREEN</strong><br>avg 1-yr: 1.4% · 5-yr: 6.4%</div>
+      </div>
+      <div class="rp-tier-chip chip-mid${curTierForBar==='mid'?' active':''}">
+        <div class="rp-dot" style="background:#d97706"></div>
+        <div><strong>AMBER</strong><br>avg 1-yr: 7.8% · 5-yr: 29%</div>
+      </div>
+      <div class="rp-tier-chip chip-high${curTierForBar==='high'?' active':''}">
+        <div class="rp-dot" style="background:#dc2626"></div>
+        <div><strong>RED</strong><br>avg 1-yr: 31.7% · 5-yr: 66%</div>
+      </div>
+    </div>
+    <div style="font-size:0.60rem;color:var(--muted);margin-top:6px;line-height:1.5">
+      ▪ Grey zones mark tier boundaries (LP tertile thresholds). Tiers are defined by the linear predictor (LP), not by absolute probability — a patient near the tier boundary may have an individual estimate below the tier average. The calculated value above is this patient's individual recalibrated estimate.
+    </div>
+  `;
+    `<div class="mc"><div class="mc-t">1-year</div><div class="mc-v" style="color:${c3(m1,10,30)}">${fmt(m1)}</div><div class="mc-ci">recalibrated</div></div>`+
+    `<div class="mc"><div class="mc-t">3-year</div><div class="mc-v" style="color:${c3(m3,20,50)}">${fmt(m3)}</div><div class="mc-ci">recalibrated</div></div>`+
+    `<div class="mc"><div class="mc-t">5-year</div><div class="mc-v" style="color:${c3(m5,30,60)}">${fmt(m5)}</div><div class="mc-ci">recalibrated</div></div>`+
+    `<div class="mc"><div class="mc-t">10-year</div><div class="mc-v" style="color:${c3(m10,40,75)}">${fmt(m10)}</div><div class="mc-ci">raw Cox</div></div>`;
+
+  document.getElementById('agrid').innerHTML =
+    `<div class="ac acox"><div class="an">Cox PH</div><div class="av">C=${m.ci.cox.toFixed(3)}</div><div class="al2">Deriv: ${m.ci.cox_d.toFixed(3)} · Elastic-net</div></div>`+
+    `<div class="ac arsf"><div class="an">RSF</div><div class="av">C=${m.ci.rsf.toFixed(3)}</div><div class="al2">Deriv: ${m.ci.rsf_d.toFixed(3)} · 100 trees</div></div>`+
+    `<div class="ac axgb"><div class="an">XGBoost</div><div class="av">C=${m.ci.xgb.toFixed(3)}</div><div class="al2">Deriv: ${m.ci.xgb_d.toFixed(3)} · AFT objective</div></div>`;
+
+  // Contribution bars
+  const cs  = getContribs(cur, i);
+  const mx  = Math.max(...cs.map(x=>Math.abs(x.c)), 0.001);
+  document.getElementById('exp-bars').innerHTML = cs.map((c,idx) => {
+    const pos  = c.c > 0;
+    const fill = pos ? 'exp-fill-pos' : 'exp-fill-neg';
+    const cls  = pos ? 'pos' : 'neg';
+    const sign = pos ? '+' : '';
+    return `<div class="exp-bar">
+      <div class="exp-label">${c.label}</div>
+      <div class="exp-track"><div class="${fill}" id="bar${idx}" style="width:0%"></div></div>
+      <div class="exp-val ${cls}">${sign}${c.c.toFixed(3)}</div>
+    </div>`;
+  }).join('');
+
+  // Highlight active algorithm card
+  document.querySelectorAll('.ac').forEach(el => el.classList.remove('algo-sel'));
+  const _amap = {cox:'acox',rsf:'arsf',xgb:'axgb'};
+  document.querySelectorAll('.'+_amap[curAlgo]).forEach(el => el.classList.add('algo-sel'));
+  showPanel('risk-panel',  60);
+  showPanel('curve-panel', 180);
+  showPanel('algo-panel',  300);
+  showPanel('exp-panel',   420);
+  showPanel('act-panel',   540);
+  showPanel('wi-panel',    660);
+  // Sync what-if simulator with current inputs
+  setTimeout(() => { wiBuildPanel(i, cur); }, 700);
+
+  // Build AILA-ACT content
+  const tier = lp <= m.t33 ? 'green' : lp <= m.t67 ? 'amber' : 'red';
+  document.getElementById('act-content').innerHTML = buildACT(tier, m.vars, i);
+
+  // Update curve panel label
+  const _cal = document.getElementById('curve-algo-label');
+  if (_cal) _cal.textContent = {cox:'Cox',rsf:'RSF',xgb:'XGBoost'}[curAlgo]||'Cox';
+  setTimeout(() => drawCurve(sc, cur), 240);
+  setTimeout(() => {
+    cs.forEach((c, idx) => {
+      const pct = (Math.abs(c.c)/mx*100).toFixed(1);
+      setTimeout(() => {
+        const el = document.getElementById('bar'+idx);
+        if (el) el.style.width = pct+'%';
+      }, idx * 45);
+    });
+  }, 540);
+}
+
+// ── Survival curve ────────────────────────────────────────────
+function drawCurve(sc, k) {
+  const canvas = document.getElementById('surv-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const DPR = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.clientWidth || 500;
+  const H   = 210;
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(DPR, DPR);
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD  = {t:18, r:24, b:44, l:54};
+  const pw   = W - PAD.l - PAD.r;
+  const ph   = H - PAD.t - PAD.b;
+  const GCOL = '#e2e8f0', ACOL = '#94a3b8', LCOL = '#64748b';
+
+  // Gridlines + Y labels
+  ctx.font = '10px IBM Plex Mono,monospace';
+  [0,25,50,75,100].forEach(pct => {
+    const y = PAD.t + ph*(1-pct/100);
+    ctx.strokeStyle=GCOL; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(PAD.l+pw,y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=LCOL; ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText(pct+'%', PAD.l-8, y);
+  });
+
+  // X ticks
+  const times = [1,2,3,4,5,6,7,8,9,10];
+  ctx.strokeStyle=ACOL; ctx.lineWidth=1; ctx.setLineDash([]);
+  times.forEach((t,i) => {
+    const x = PAD.l + pw*i/9;
+    ctx.beginPath(); ctx.moveTo(x,PAD.t+ph); ctx.lineTo(x,PAD.t+ph+4); ctx.stroke();
+    if (t===1||t%2===0) {
+      ctx.fillStyle=LCOL; ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.font='10px IBM Plex Mono,monospace';
+      ctx.fillText(t, x, PAD.t+ph+7);
+    }
+  });
+
+  // Axes
+  ctx.strokeStyle=ACOL; ctx.lineWidth=1.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(PAD.l,PAD.t); ctx.lineTo(PAD.l,PAD.t+ph); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD.l,PAD.t+ph); ctx.lineTo(PAD.l+pw,PAD.t+ph); ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle=LCOL; ctx.font='10px IBM Plex Sans,sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='bottom';
+  ctx.fillText('Years', PAD.l+pw/2, H-2);
+  ctx.save(); ctx.translate(13,PAD.t+ph/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('Survival (%)', 0, 0); ctx.restore();
+
+  // Curve fill + line
+  const cmap = {admission:'#2563eb', discharge:'#0891b2', max:'#d97706'};
+  const col  = cmap[k] || '#2563eb';
+
+  ctx.beginPath();
+  times.forEach((t,i) => {
+    const x = PAD.l+pw*i/9, y = PAD.t+ph*(1-sc[t]/100);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.lineTo(PAD.l+pw,PAD.t+ph); ctx.lineTo(PAD.l,PAD.t+ph);
+  ctx.closePath(); ctx.fillStyle=col+'1a'; ctx.fill();
+
+  ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=2.5;
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  times.forEach((t,i) => {
+    const x = PAD.l+pw*i/9, y = PAD.t+ph*(1-sc[t]/100);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Dots + labels at 1, 3, 5, 10
+  [1,3,5,10].forEach(t => {
+    const i = t-1;
+    const x = PAD.l+pw*i/9, y = PAD.t+ph*(1-sc[t]/100);
+    ctx.beginPath(); ctx.arc(x,y,4.5,0,2*Math.PI);
+    ctx.fillStyle=col; ctx.strokeStyle='#ffffff'; ctx.lineWidth=2;
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle=col; ctx.font='bold 9px IBM Plex Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText(sc[t].toFixed(0)+'%', x, y-8);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AILA-ACT FRAMEWORK
+// ═══════════════════════════════════════════════════════════════
+const ACT = {
+  green: {
+    cls: 'act-green', name: 'GREEN — Low risk',
+    stat: '1-year mortality 1.4–1.6% · 1.6 deaths per 100 patient-years',
+    adm: ['Standard monitoring and routine admission bloods',
+          'Calculate AILA-Admission score — document tier in notes',
+          'Baseline ECG and echocardiography if >12 months since last',
+          'Standard discharge planning from day 1'],
+    inh: ['GDMT if HF is present — initiate before discharge',
+          'Routine bloods day 3',
+          'Standard discharge plan — no intensification required'],
+    dis: ['Medication reconciliation — stop NSAIDs, glitazones if HF',
+          'GP letter on day of discharge with AILA tier documented',
+          'Cardiology outpatient review within 3 months',
+          'Patient safety-net advice: return if breathless, weight gain >2 kg/48 h'],
+    fup: ['GP bloods within 4 weeks (renal, electrolytes)',
+          'Cardiology OPD at 3 months',
+          'Annual AILA recalculation at each re-admission'],
+  },
+  amber: {
+    cls: 'act-amber', name: 'AMBER — Intermediate risk',
+    stat: '1-year mortality 7.8–8.6% · 7.5 deaths per 100 patient-years',
+    adm: ['Daily senior cardiologist review — not trainee only',
+          'Twice-daily observations: HR, BP, weight, fluid balance',
+          'Bloods at admission and repeat day 2–3 (renal, FBC, electrolytes)',
+          'Identify and document ALL reversible factors (see below)',
+          'Dietitian referral if BMI <20 or albumin <3.5 g/dL',
+          'Initiate GDMT: ACEi/ARB/ARNI + beta-blocker + MRA + SGLT2i',
+          'Flag for structured discharge planning before day 5'],
+    inh: ['Repeat bloods within 48 h of any diuretic change',
+          'Target discharge Hb ≥10 g/dL — investigate and treat if below',
+          'NLR at discharge: if >5 without explanation, delay 24 h and investigate',
+          'Initiate SGLT2i if HFrEF, HFmrEF, HFpEF, or T2DM present',
+          'Valve team referral if significant VHD identified',
+          'Cardiac rehabilitation referral confirmed before discharge'],
+    dis: ['GP letter: AILA AMBER — enhanced follow-up requested',
+          'Written action plan with named contact number',
+          'Structured telephone contact booked within 72 hours of discharge',
+          'Post-discharge bloods at GP within 1–2 weeks'],
+    fup: ['72-hour telephone contact: symptoms, weight, medication tolerance',
+          'Cardiology OPD within 4–6 weeks',
+          'GDMT titration visit at 3 months — target maximum tolerated doses',
+          'Repeat echocardiography at 3–6 months if LVEF <50%',
+          'Device therapy assessment at 6 months if LVEF ≤35% on optimal GDMT'],
+  },
+  red: {
+    cls: 'act-red', name: 'RED — High risk',
+    stat: '1-year mortality 30–32% · 24.6 deaths per 100 patient-years · 15× higher than LOW tier',
+    adm: ['Senior cardiologist review within 4 hours of admission',
+          'HDU or monitored bed for first 24–48 hours',
+          'Continuous ECG monitoring, SpO₂, hourly urine output',
+          'Immediate bloods: renal, FBC, BNP/NT-proBNP, arterial blood gas',
+          'Assess: ICD, CRT, transplant listing, LVAD candidacy',
+          'Valve team referral if significant VHD — intervention can reduce mortality 40–60%',
+          'Goals-of-care and ceiling-of-care conversation on day 1',
+          'Next of kin notified of severity — shared decision-making from admission'],
+    inh: ['Daily assessment of ALL reversible factors (see below)',
+          'Do not discharge until: euvolaemic, haemodynamically stable ≥24 h, oral medications tolerated',
+          'Maximise ALL GDMT before discharge — do not defer to outpatient setting',
+          'ICD eligibility: LVEF ≤35% + >40 days post-MI + ≥3 months optimal GDMT',
+          'Advanced HF referral: ≥2 HF admissions in 12 months, LVEF ≤25%, or inotrope dependence',
+          'Mandatory valve team referral if significant VHD'],
+    dis: ['GP letter: AILA RED — urgent enhanced follow-up. 1-year mortality >30%.',
+          'Community nurse or HF nurse face-to-face within 1 week of discharge',
+          'Daily weight monitoring at home — provide scales if unavailable',
+          'GP telephone contact within 48–72 hours of discharge',
+          'Bloods at GP within 5–7 days (post-discharge AKI peaks days 5–10)',
+          'Palliative care referral if >2 organ systems failing, refractory NYHA IV, or patient preference'],
+    fup: ['48–72 h telephone contact — do not wait until week 1',
+          'Face-to-face nurse visit within 1 week: detects oedema, non-adherence',
+          'Cardiology OPD within 2 weeks: clinical review, ECG, renal function, BNP',
+          'GDMT optimisation at 6 weeks — each class initiated reduces mortality ~15%',
+          'Advanced HF assessment at 3 months: LVAD/transplant candidacy',
+          'Monthly nurse contact for first 3 months',
+          'Annual MDT review: cardiologist + GP + palliative care + patient + family'],
+  }
+};
+
+// Reversible factors — only those relevant to each model shown
+const RV_ALL = {
+  Age: {
+    cls:'rv-none', name:'Age', tag:'Not reversible',
+    text:`<ul>
+      <li>Dominant AILA predictor — cannot be modified</li>
+      <li>Represents the irreducible biological component of risk</li>
+      <li>Direct intensified effort toward all 13 modifiable variables</li>
+      <li>In older patients where age drives RED-tier: earlier goals-of-care conversation</li>
+    </ul>`
+  },
+  HFplusLVEF_Simplified: {
+    cls:'rv-modh', name:'HF presence and subtype', tag:'Moderate–High reversibility',
+    text:`<ul>
+      <li><strong>HFrEF:</strong> all 4 GDMT pillars — ACEi/ARB/ARNI + beta-blocker + MRA + SGLT2i; LV recovery (HFrecEF) in 30–40% on optimal therapy</li>
+      <li><strong>ARNI (sacubitril/valsartan):</strong> preferred over ACEi in HFrEF — superior mortality benefit (PARADIGM-HF)</li>
+      <li><strong>HFpEF:</strong> SGLT2i (EMPEROR-Preserved, DELIVER); BP &lt;130/80 mmHg; treat AF and obesity</li>
+      <li><strong>HFmrEF:</strong> treat as HFrEF — highest LV recovery rate</li>
+      <li><strong>Device therapy:</strong> ICD if LVEF ≤35% on ≥3 months GDMT; CRT if LBBB + QRS ≥150 ms</li>
+      <li><strong>Advanced HF:</strong> LVEF ≤25%, NYHA III–IV, or ≥2 admissions/12 months → refer (LVAD/transplant)</li>
+      <li><strong>Target:</strong> all 4 pillars initiated; LVEF recheck at 3–6 months; device pathway documented</li>
+    </ul>`
+  },
+  SIGNIFICANTsinglemultiVHD: {
+    cls:'rv-high', name:'Significant VHD', tag:'HIGH reversibility',
+    text:`<ul>
+      <li>Most dramatically reversible AILA factor — intervention reduces mortality 40–60%</li>
+      <li><strong>Severe AS:</strong> TAVI (high/intermediate surgical risk) or SAVR (low risk/younger) — do not defer referral</li>
+      <li><strong>Severe MR (primary):</strong> MitraClip — COAPT: 47% reduction in HF hospitalisation, 38% reduction in 2-year mortality</li>
+      <li><strong>Severe MR (functional):</strong> optimise GDMT first; MitraClip if severe MR persists on optimal GDMT</li>
+      <li><strong>Severe TR:</strong> transcatheter intervention at specialist centres — refer early</li>
+      <li><strong>Severe AR / MS / TS:</strong> surgical referral — do not defer in AMBER/RED patients</li>
+      <li><strong>Target:</strong> valve team referral documented before discharge for all AMBER/RED patients with significant VHD</li>
+    </ul>`
+  },
+  eGFR_ADM: {
+    cls:'rv-modh', name:'eGFR (admission)', tag:'Moderate–High reversibility',
+    text:`<ul>
+      <li><strong>Pre-renal (BUN:Cr &gt;20):</strong> reduce diuresis cautiously, optimise cardiac output, target clinical euvolaemia</li>
+      <li><strong>Over-diuresis:</strong> most common iatrogenic cause — weigh daily, target dry weight (not further loss)</li>
+      <li><strong>Nephrotoxins:</strong> stop NSAIDs, contrast agents, aminoglycosides, trimethoprim</li>
+      <li><strong>ACEi/ARB/ARNI:</strong> uptitrate to maximum tolerated — creatinine rise ≤30% acceptable, do not stop</li>
+      <li><strong>SGLT2i:</strong> nephroprotective independently of HF — initiate if eGFR ≥20 mL/min/1.73m²</li>
+      <li><strong>Nephrology referral:</strong> eGFR &lt;30 mL/min/1.73m² or rapidly declining trajectory</li>
+      <li><strong>Target:</strong> euvolaemia confirmed; BUN:Cr &lt;20; ACEi + SGLT2i initiated; eGFR stable or improving at discharge</li>
+    </ul>`
+  },
+  HBadm: {
+    cls:'rv-high', name:'Haemoglobin (admission)', tag:'HIGH reversibility',
+    text:`<ul>
+      <li><strong>Iron deficiency (most common):</strong> ferritin &lt;100 ng/mL or transferrin saturation &lt;20% → IV ferric carboxymaltose 500–1000 mg</li>
+      <li><strong>Evidence:</strong> AFFIRM-AHF — 26% relative reduction in HF hospitalisation; IRONMAN — consistent benefit</li>
+      <li><strong>Renal anaemia (eGFR &lt;45):</strong> erythropoiesis-stimulating agents if Hb &lt;10 g/dL; target Hb 10–11 g/dL</li>
+      <li><strong>Transfusion:</strong> only if Hb &lt;8 g/dL with haemodynamic compromise — caution in decompensated HF</li>
+      <li>Investigate cause: ferritin, transferrin saturation, reticulocyte count, B12/folate</li>
+      <li><strong>Target:</strong> Hb ≥10 g/dL at discharge; if not — IV iron initiated, cause documented, recheck booked</li>
+    </ul>`
+  },
+  DM: {
+    cls:'rv-high', name:'Diabetes mellitus', tag:'HIGH reversibility',
+    text:`<ul>
+      <li><strong>SGLT2i:</strong> CV mortality and HF hospitalisation reduction across all LVEF ranges, independent of glucose (NNT ~25 over 2 years) — initiate before discharge if eGFR ≥20 mL/min/1.73m²</li>
+      <li><strong>GLP-1 receptor agonists:</strong> 12–26% CV mortality reduction in T2DM + CVD (LEADER, SUSTAIN-6) — add if SGLT2i insufficient</li>
+      <li><strong>Glycaemic target:</strong> HbA1c &lt;7.5% (younger); &lt;8.5% (frail/elderly)</li>
+      <li><strong>Avoid hypoglycaemia</strong> — associated with acute arrhythmia and sudden cardiac events</li>
+      <li>If insulin required: basal regimen; avoid complex regimens in frail patients at discharge</li>
+      <li><strong>Target:</strong> SGLT2i initiated; HbA1c target documented; endocrinology informed if HbA1c &gt;9%</li>
+    </ul>`
+  },
+  LungDisease: {
+    cls:'rv-mod', name:'Lung disease', tag:'Moderate reversibility',
+    text:`<ul>
+      <li><strong>Smoking cessation:</strong> 36% reduction in CV mortality within 2 years — offer nicotine replacement or varenicline to every smoker at every admission</li>
+      <li><strong>COPD:</strong> LABA + LAMA ± ICS; pulmonary rehabilitation reduces exacerbation rate and mortality</li>
+      <li><strong>Frequent exacerbators (≥2/year):</strong> consider prophylactic azithromycin</li>
+      <li><strong>OSA:</strong> Epworth Sleepiness Scale + overnight oximetry; CPAP reduces CV events — refer to sleep service</li>
+      <li><strong>Pulmonary hypertension:</strong> treat underlying cause; Group 1 PH → refer to specialist PH centre</li>
+      <li><strong>Target:</strong> smoking cessation offer documented; optimal inhaler prescribed; OSA screened; pulmonary rehab referral</li>
+    </ul>`
+  },
+  HBdis: {
+    cls:'rv-high', name:'Haemoglobin (discharge)', tag:'HIGH reversibility',
+    text:`<ul>
+      <li>Discharge Hb reflects the in-hospital trajectory — fall below admission Hb is a high-risk signal</li>
+      <li><strong>If Hb fallen:</strong> investigate haemodilution vs haemorrhage vs haemolysis before discharge</li>
+      <li><strong>IV iron</strong> if iron-deficient (same criteria as admission Hb)</li>
+      <li><strong>Do not discharge</strong> with unexplained Hb &lt;9 g/dL without documented cause and plan</li>
+      <li>Delta Hb (discharge − admission) is independently prognostic — document both values</li>
+      <li><strong>Target:</strong> Hb ≥10 g/dL at discharge; if not — IV iron initiated, post-discharge Hb recheck booked</li>
+    </ul>`
+  },
+  log_NLRdis: {
+    cls:'rv-high', name:'NLR (discharge)', tag:'HIGH reversibility',
+    text:`<ul>
+      <li>Only AILA variable that directly signals biological readiness for discharge</li>
+      <li><strong>NLR &gt;5:</strong> do not discharge without active investigation</li>
+      <li><strong>Active infection:</strong> antibiotic course complete; blood cultures negative; CRP falling trend</li>
+      <li><strong>Uncontrolled diabetes:</strong> check capillary glucose and HbA1c; optimise before discharge</li>
+      <li><strong>Corticosteroid use:</strong> document indication; taper to minimum effective dose</li>
+      <li><strong>Occult malignancy:</strong> NLR persistently &gt;5 without clear cause → CT chest/abdomen/pelvis ± tumour markers</li>
+      <li><strong>NLR &gt;6 + unexplained fever:</strong> delay discharge 24–48 h; recheck FBC, CRP, blood cultures</li>
+      <li>GDMT (beta-blockers, RAAS blockade) reduces NLR over time — optimisation is anti-inflammatory</li>
+      <li><strong>Target:</strong> NLR &lt;5 at discharge, or clear explanation with treatment documented</li>
+    </ul>`
+  },
+  DischargeCatGen_fixed: {
+    cls:'rv-mod', name:'Discharge diagnosis', tag:'Moderate reversibility',
+    text:`<ul>
+      <li><strong>Decompensated HF:</strong> maximise all 4 GDMT pillars; BNP/NTproBNP should be falling at discharge</li>
+      <li><strong>ACS:</strong> complete revascularisation; DAPT + statin + ACEi + beta-blocker; cardiac rehab referral</li>
+      <li><strong>AF:</strong> anticoagulate (CHA₂DS₂-VASc ≥1 in men, ≥2 in women); rate control HR 60–80 bpm at rest; ablation referral if recurrent</li>
+      <li><strong>VHD as primary diagnosis:</strong> valve team referral mandatory (see VHD factor above)</li>
+      <li>All secondary treatable causes must be addressed before discharge</li>
+      <li><strong>Target:</strong> diagnosis-specific therapy complete; no reversible secondary causes untreated</li>
+    </ul>`
+  },
+  log_Durationofhospitalizationdays: {
+    cls:'rv-none', name:'Duration of hospitalisation', tag:'Low (proxy signal)',
+    text:`<ul>
+      <li>Prolonged stay is a proxy for admission complexity — not directly modifiable</li>
+      <li>Signals high need for enhanced post-discharge surveillance regardless of other variables</li>
+      <li>Common causes: multi-morbidity, delayed optimisation, social complexity, infection</li>
+      <li><strong>Stay &gt;7 days:</strong> social work assessment before discharge; document reasons in discharge letter</li>
+      <li><strong>Target:</strong> enhanced follow-up intensity; community team alerted; social support plan confirmed</li>
+    </ul>`
+  },
+  URadm: {
+    cls:'rv-modh', name:'BUN (admission)', tag:'Moderate–High reversibility',
+    text:`<ul>
+      <li><strong>BUN:Cr &gt;20 (pre-renal):</strong> reduce diuresis cautiously; optimise cardiac output; target euvolaemia</li>
+      <li><strong>BUN:Cr &lt;10 (intrinsic renal):</strong> nephrology review; exclude obstructive causes</li>
+      <li><strong>Stop nephrotoxins:</strong> NSAIDs, contrast agents, aminoglycosides, trimethoprim</li>
+      <li>ACEi/ARB/ARNI: uptitrate — creatinine rise ≤30% is acceptable</li>
+      <li><strong>Target:</strong> BUN stable or falling; BUN:Cr &lt;20; no nephrotoxins at discharge; euvolaemia confirmed</li>
+    </ul>`
+  },
+  URdis: {
+    cls:'rv-high', name:'BUN (discharge)', tag:'HIGH reversibility',
+    text:`<ul>
+      <li><strong>Rising BUN during admission = high-risk trajectory</strong> — do not discharge with rising BUN trend</li>
+      <li>Reassess fluid balance daily if BUN rising; reduce diuretic if over-diuresed</li>
+      <li>Check BUN every 48 hours until stable or falling before discharge</li>
+      <li><strong>Post-discharge AKI</strong> peaks at days 5–10 — early GP bloods are essential</li>
+      <li>If BUN still rising at planned discharge: delay and investigate; check cardiac output</li>
+      <li><strong>Target:</strong> BUN stable or falling; GP renal bloods booked within 5–7 days of discharge</li>
+    </ul>`
+  },
+  log_NP_combined: {
+    cls:'rv-modh', name:'Natriuretic peptide', tag:'Moderate–High reversibility',
+    text:`<ul>
+      <li><strong>Direction of change matters more than absolute value</strong> — NP not falling = high-risk signal</li>
+      <li>Do not discharge without explaining why NP is not falling</li>
+      <li><strong>Volume overload:</strong> intensify diuresis to euvolaemia (weight ≤ dry weight, JVP normal, lung bases clear)</li>
+      <li><strong>ARNI (sacubitril/valsartan):</strong> most potent NP-reducing therapy — reduces NT-proBNP 20–30% within weeks; proven mortality benefit in HFrEF (PARADIGM-HF)</li>
+      <li><strong>SGLT2i:</strong> reduces NP independently of diuresis — benefit within days of initiation</li>
+      <li><strong>Persistent elevation despite euvolaemia:</strong> consider high-output states (anaemia, thyrotoxicosis, AV fistula), renal dysfunction, or arrhythmia</li>
+      <li><strong>Target:</strong> NP falling trend documented at discharge; if not — reason explained, enhanced follow-up confirmed</li>
+    </ul>`
+  },
+  ALBUMINadm: {
+    cls:'rv-mod', name:'Albumin (admission)', tag:'Moderate reversibility',
+    text:`<ul>
+      <li>Hypoalbuminaemia (&lt;3.5 g/dL) reflects malnutrition, chronic inflammation, or hepatic dysfunction</li>
+      <li>Albumin corrects slowly — benefit is post-discharge nutritional optimisation, not waiting for normalisation</li>
+      <li><strong>Albumin &lt;3.5 g/dL:</strong> dietitian referral before discharge; oral nutritional supplements if intake inadequate</li>
+      <li><strong>Albumin &lt;3.0 g/dL:</strong> consider nasogastric supplementation; exclude protein-losing enteropathy, nephrotic syndrome, hepatic dysfunction</li>
+      <li><strong>Protein target:</strong> ≥1.2 g/kg/day — reduce unnecessary dietary restrictions in frail patients</li>
+      <li><strong>Frailty (CFS ≥5):</strong> add OT, physiotherapy, and social work referral alongside nutritional plan</li>
+      <li><strong>Target:</strong> dietitian referral booked; supplement prescribed; post-discharge nutrition follow-up confirmed</li>
+    </ul>`
+  },
+};
+
+let _actOpenId = null;
+function actToggle(id) {
+  const el = document.getElementById('act-rv-'+id);
+  if (!el) return;
+  if (_actOpenId && _actOpenId !== id) {
+    const prev = document.getElementById('act-rv-'+_actOpenId);
+    if (prev) prev.classList.remove('open');
+  }
+  el.classList.toggle('open');
+  _actOpenId = el.classList.contains('open') ? id : null;
+}
+
+function buildACT(tier, modelVars, inputs) {
+  const T = ACT[tier];
+  if (!T) return '';
+
+  // Phase grid
+  const phaseHTML = (label, cls, items) =>
+    `<div class="act-phase ${cls}">
+      <div class="act-phase-hdr">${label}</div>
+      <ul>${items.map(i=>`<li><span>${i}</span></li>`).join('')}</ul>
+    </div>`;
+
+  // Reversible factors — only vars in this model
+  const rvKeys = modelVars.filter(v => RV_ALL[v]);
+  // Sort: HIGH → MOD-HIGH → MOD → LOW/NONE
+  const order = {'rv-high':0,'rv-modh':1,'rv-mod':2,'rv-none':3};
+  rvKeys.sort((a,b) => (order[RV_ALL[a].cls]||3) - (order[RV_ALL[b].cls]||3));
+
+  const rvHTML = rvKeys.map(k => {
+    const r = RV_ALL[k];
+    const id = k.replace(/[^a-z0-9]/gi,'_');
+    // Flag if variable contributing significantly to risk
+    const contrib = inputs[k];
+    return `<div class="act-rv ${r.cls}" onclick="actToggle('${id}')">
+      <div class="act-rv-name">${r.name}</div>
+      <div class="act-rv-tag">${r.tag}</div>
+      <div class="act-rv-detail" id="act-rv-${id}">${r.text}</div>
+    </div>`;
+  }).join('');
+
+  // Special flags
+  let flags = '';
+  if (tier === 'red') {
+    flags += `<div class="act-flag flag-warn">⚠ RED tier: 1-year mortality exceeds 30%. Senior cardiologist review within 4 hours. Goals-of-care conversation on day 1. Do not discharge if haemodynamically unstable.</div>`;
+  }
+  if (tier === 'amber') {
+    flags += `<div class="act-flag flag-info">ℹ AMBER tier: 8× higher mortality than LOW. Active optimisation and early structured follow-up required. If tier upgrades between admission and discharge (AILA-Admission → higher tier), mandatory senior review before discharge.</div>`;
+  }
+
+  return `
+    <div class="act-tier-bar ${T.cls}">
+      <div>
+        <div class="act-tier-name">${T.name}</div>
+        <div class="act-tier-stat">${T.stat}</div>
+      </div>
+    </div>
+    ${flags}
+    <div class="act-phases">
+      ${phaseHTML('Admission (0–48 h)', 'ph-adm', T.adm)}
+      ${phaseHTML('In-hospital (Day 2 → discharge)', 'ph-inh', T.inh)}
+      ${phaseHTML('Discharge planning', 'ph-dis', T.dis)}
+      ${phaseHTML('Post-discharge follow-up', 'ph-fup', T.fup)}
+    </div>
+    <div class="act-rev-title">Reversible factors for this model — click to expand intervention guidance</div>
+    <div class="act-rev-grid">${rvHTML}</div>
+    <div style="font-size:0.63rem;color:var(--muted);margin-top:10px;line-height:1.6">
+      For clinical use by attending cardiologist and ward team only. Does not replace clinical judgement.
+    </div>`;
+}
+
+// ── WHAT-IF SIMULATOR ────────────────────────────────────────────────────────
+
+// Config: for each AILA-Max variable, define slider range, step, display label,
+// transform (raw→model input) and display format
+const WI_CONFIG = {
+  Age: {
+    label:'Age', unit:'years', min:18, max:100, step:1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(0),
+    modifiable: false
+  },
+  HFplusLVEF_Simplified: {
+    label:'HF + EF category', unit:'', min:0, max:2, step:1,
+    toModel: v=>v, toDisplay: v=>(['None','HFpEF/HFmrEF','HFrEF'][Math.round(v)]||v),
+    modifiable: true
+  },
+  SIGNIFICANTsinglemultiVHD: {
+    label:'Significant VHD', unit:'', min:0, max:2, step:1,
+    toModel: v=>v, toDisplay: v=>(['None','Single valve','Multivalvular'][Math.round(v)]||v),
+    modifiable: true
+  },
+  eGFR_ADM: {
+    label:'eGFR (admission)', unit:'mL/min/1.73m²', min:5, max:130, step:1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(0),
+    modifiable: true
+  },
+  HBadm: {
+    label:'Haemoglobin (admission)', unit:'g/dL', min:5, max:18, step:0.1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(1),
+    modifiable: true
+  },
+  DM: {
+    label:'Diabetes mellitus', unit:'', min:0, max:1, step:1,
+    toModel: v=>v, toDisplay: v=>(v==0?'No':'Yes'),
+    modifiable: true
+  },
+  LungDisease: {
+    label:'Lung disease', unit:'', min:0, max:1, step:1,
+    toModel: v=>v, toDisplay: v=>(v==0?'No':'Yes'),
+    modifiable: true
+  },
+  HBdis: {
+    label:'Haemoglobin (discharge)', unit:'g/dL', min:5, max:18, step:0.1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(1),
+    modifiable: true
+  },
+  log_NLRdis: {
+    label:'NLR (discharge)', unit:'ratio', min:0.5, max:20, step:0.1,
+    toModel: v=>Math.log(Math.max(v,0.1)),
+    toDisplay: v=>v.toFixed(1),
+    rawFromModel: mv=>Math.exp(mv),
+    modifiable: true
+  },
+  DischargeCatGen_fixed: {
+    label:'Discharge diagnosis', unit:'', min:1, max:4, step:1,
+    toModel: v=>v, toDisplay: v=>(['','HF/VHD/PH','CAD','Arrhythmia','Other'][Math.round(v)]||v),
+    modifiable: true
+  },
+  log_Durationofhospitalizationdays: {
+    label:'Duration of hospitalisation', unit:'days', min:1, max:30, step:1,
+    toModel: v=>Math.log(Math.max(v,1)),
+    toDisplay: v=>v.toFixed(0),
+    rawFromModel: mv=>Math.round(Math.exp(mv)),
+    modifiable: true
+  },
+  URadm: {
+    label:'BUN (admission)', unit:'mg/dL', min:5, max:200, step:1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(0),
+    modifiable: true
+  },
+  URdis: {
+    label:'BUN (discharge)', unit:'mg/dL', min:5, max:200, step:1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(0),
+    modifiable: true
+  },
+  log_NP_combined: {
+    label:'Natriuretic peptide (×ULN)', unit:'×ULN', min:0.1, max:50, step:0.1,
+    toModel: v=>Math.log(Math.max(v,0.01)),
+    toDisplay: v=>v.toFixed(1),
+    rawFromModel: mv=>Math.exp(mv),
+    modifiable: true
+  },
+  ALBUMINadm: {
+    label:'Albumin (admission)', unit:'g/dL', min:2.0, max:5.5, step:0.1,
+    toModel: v=>v, toDisplay: v=>v.toFixed(1),
+    modifiable: true
+  }
+};
+
+let _wiOriginal = {};   // original raw values (slider scale) from calculator
+let _wiCurrent  = {};   // current adjusted raw values
+let _wiBuilt    = false;
+
+function wiRawFromInput(varName, inputVal) {
+  // Convert from the calculator's internal input format to slider raw value
+  const cfg = WI_CONFIG[varName];
+  if (!cfg) return inputVal;
+  if (cfg.rawFromModel) return cfg.rawFromModel(inputVal);
+  return inputVal;
+}
+
+let _wiModel = 'max';  // track which model the simulator is using
+
+function wiBuildPanel(inputs, modelKey) {
+  _wiModel = modelKey || 'max';
+  const m = M[_wiModel];
+  _wiOriginal = {};
+  _wiCurrent  = {};
+
+  // Extract raw values from calculator inputs
+  for (const v of m.vars) {
+    const cfg = WI_CONFIG[v];
+    if (!cfg) continue;
+    const modelVal = inputs[v];
+    const rawVal = cfg.rawFromModel ? cfg.rawFromModel(modelVal) : modelVal;
+    _wiOriginal[v] = rawVal;
+    _wiCurrent[v]  = rawVal;
+  }
+
+  // Build HTML
+  let html = '<div class="wi-vars">';
+  let section = '';
+  for (const v of m.vars) {
+    const cfg = WI_CONFIG[v];
+    if (!cfg) continue;
+    const raw = _wiOriginal[v];
+    const clampedRaw = Math.min(Math.max(raw, cfg.min), cfg.max);
+
+    // Section separators
+    let newSection = '';
+    if (v === 'Age') newSection = 'Admission variables';
+    else if (v === 'HBdis') newSection = 'Discharge variables';
+    else if (v === 'URadm') newSection = 'Extended biomarkers (AILA-Max)';
+    if (newSection && newSection !== section) {
+      html += `<div class="wi-sep">${newSection}</div>`;
+      section = newSection;
+    }
+
+    const modClass = cfg.modifiable ? '' : ' style="opacity:0.6"';
+    const disabledAttr = cfg.modifiable ? '' : 'disabled';
+    html += `
+      <div class="wi-row" id="wi-row-${v}">
+        <div class="wi-label">${cfg.label}<small>${cfg.unit}</small></div>
+        <input type="range" class="wi-slider" id="wi-sl-${v}"
+          min="${cfg.min}" max="${cfg.max}" step="${cfg.step}"
+          value="${clampedRaw.toFixed(2)}"
+          ${disabledAttr}
+          oninput="wiSliderChange('${v}', this.value)">
+        <input type="text" class="wi-val" id="wi-tv-${v}"
+          value="${cfg.toDisplay(clampedRaw)}"
+          ${disabledAttr}
+          onchange="wiTextChange('${v}', this.value)">
+        <button class="wi-reset-btn" onclick="wiResetVar('${v}')" title="Reset to original">↺</button>
+      </div>`;
+  }
+  html += '</div>';
+
+  document.getElementById('wi-vars-container').innerHTML = html;
+  document.getElementById('wi-result-container').style.display = 'none';
+  _wiBuilt = true;
+  // Update panel title to reflect active model
+  const titleEl = document.getElementById('wi-panel-title');
+  if (titleEl) titleEl.textContent = '🔬 What-If Simulator — ' + M[_wiModel].label + ' (' + M[_wiModel].vars.length + ' variables)';
+}
+
+function wiSliderChange(varName, rawVal) {
+  const cfg = WI_CONFIG[varName];
+  const v = parseFloat(rawVal);
+  _wiCurrent[varName] = v;
+  document.getElementById('wi-tv-'+varName).value = cfg.toDisplay(v);
+  wiMarkModified(varName);
+}
+
+function wiTextChange(varName, textVal) {
+  const cfg = WI_CONFIG[varName];
+  // For categorical: accept text labels
+  let v;
+  const lower = textVal.toLowerCase().trim();
+  if (varName === 'DM' || varName === 'LungDisease') {
+    v = (lower==='yes'||lower==='1') ? 1 : 0;
+  } else if (varName === 'HFplusLVEF_Simplified') {
+    if (lower.includes('hfref')||lower==='2') v=2;
+    else if (lower.includes('hfpef')||lower.includes('hfmref')||lower==='1') v=1;
+    else v=0;
+  } else if (varName === 'SIGNIFICANTsinglemultiVHD') {
+    if (lower.includes('multi')||lower==='2') v=2;
+    else if (lower.includes('single')||lower==='1') v=1;
+    else v=0;
+  } else if (varName === 'DischargeCatGen_fixed') {
+    if (lower.includes('hf')||lower.includes('vhd')||lower==='1') v=1;
+    else if (lower.includes('cad')||lower==='2') v=2;
+    else if (lower.includes('arr')||lower==='3') v=3;
+    else v=4;
+  } else {
+    v = parseFloat(textVal);
+    if (isNaN(v)) return;
+  }
+  v = Math.min(Math.max(v, cfg.min), cfg.max);
+  _wiCurrent[varName] = v;
+  document.getElementById('wi-sl-'+varName).value = v;
+  document.getElementById('wi-tv-'+varName).value = cfg.toDisplay(v);
+  wiMarkModified(varName);
+}
+
+function wiMarkModified(varName) {
+  const row = document.getElementById('wi-row-'+varName);
+  if (!row) return;
+  const isModified = Math.abs(_wiCurrent[varName] - _wiOriginal[varName]) > 0.001;
+  row.classList.toggle('wi-modified', isModified);
+}
+
+function wiResetVar(varName) {
+  const cfg = WI_CONFIG[varName];
+  const orig = _wiOriginal[varName];
+  _wiCurrent[varName] = orig;
+  const sl = document.getElementById('wi-sl-'+varName);
+  const tv = document.getElementById('wi-tv-'+varName);
+  if (sl) sl.value = orig;
+  if (tv) tv.value = cfg.toDisplay(orig);
+  const row = document.getElementById('wi-row-'+varName);
+  if (row) row.classList.remove('wi-modified');
+}
+
+function wiResetAll() {
+  for (const v of M[_wiModel].vars) wiResetVar(v);
+  document.getElementById('wi-result-container').style.display = 'none';
+}
+
+function wiComputeLP(rawVals) {
+  const m = M[_wiModel];
+  let lp = 0;
+  for (const v of m.vars) {
+    const cfg = WI_CONFIG[v];
+    if (!cfg) continue;
+    const modelVal = cfg.toModel(rawVals[v]);
+    lp += m.coefs[v] * (modelVal - m.mean[v]) / m.scale[v];
+  }
+  return lp;
+}
+
+function wiGetTier(lp) {
+  const m = M[_wiModel];
+  if (lp <= m.t33) return {id:'low', label:'Low Risk', cls:'tier-low', icon:'▼'};
+  if (lp <= m.t67) return {id:'mid', label:'Intermediate Risk', cls:'tier-mid', icon:'◆'};
+  return {id:'high', label:'High Risk', cls:'tier-high', icon:'▲'};
+}
+
+function wiRecalculate() {
+  if (!_wiBuilt) return;
+  const m = M[_wiModel];
+
+  const lpOrig = wiComputeLP(_wiOriginal);
+  const lpAdj  = wiComputeLP(_wiCurrent);
+  const deltaLP = lpAdj - lpOrig;
+
+  const tierOrig = wiGetTier(lpOrig);
+  const tierAdj  = wiGetTier(lpAdj);
+
+  // Mortality estimates
+  function getMort(lp) {
+    const s1=survAtT(_wiModel,lp,1), s3=survAtT(_wiModel,lp,3), s5=survAtT(_wiModel,lp,5);
+    return {
+      m1: recalibrate(_wiModel,s1,1)*100,
+      m3: recalibrate(_wiModel,s3,3)*100,
+      m5: recalibrate(_wiModel,s5,5)*100
+    };
+  }
+  const mortOrig = getMort(lpOrig);
+  const mortAdj  = getMort(lpAdj);
+
+  // Tier change label
+  let tierChangeHTML;
+  const tierOrder = {low:0, mid:1, high:2};
+  const diff = tierOrder[tierAdj.id] - tierOrder[tierOrig.id];
+  if (diff < 0)      tierChangeHTML = `<span class="wi-tier-change improved">▼ Tier improved</span>`;
+  else if (diff > 0) tierChangeHTML = `<span class="wi-tier-change worse">▲ Tier worsened</span>`;
+  else               tierChangeHTML = `<span class="wi-tier-change same">= Same tier</span>`;
+
+  // Delta panel
+  const fmt1 = v => v.toFixed(1)+'%';
+  const deltaLPClass = deltaLP < -0.01 ? 'neg' : deltaLP > 0.01 ? 'pos' : 'neu';
+  const dm1 = mortAdj.m1 - mortOrig.m1;
+  const dm3 = mortAdj.m3 - mortOrig.m3;
+  const dm5 = mortAdj.m5 - mortOrig.m5;
+  function fmtDelta(d) {
+    const s = d>=0?'+':''; return s+d.toFixed(1)+'%';
+  }
+  function deltaClass(d) { return d<-0.05?'neg':d>0.05?'pos':'neu'; }
+
+  document.getElementById('wi-delta').innerHTML = `
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">Original LP</div>
+      <div class="wi-delta-val neu">${lpOrig.toFixed(3)}</div>
+    </div>
+    <div class="wi-tier-arrow">→</div>
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">Adjusted LP</div>
+      <div class="wi-delta-val ${deltaLPClass}">${lpAdj.toFixed(3)}</div>
+    </div>
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">ΔLP</div>
+      <div class="wi-delta-val ${deltaLPClass}">${deltaLP>=0?'+':''}${deltaLP.toFixed(3)}</div>
+    </div>
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">Δ 1-year</div>
+      <div class="wi-delta-val ${deltaClass(dm1)}">${fmtDelta(dm1)}</div>
+    </div>
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">Δ 3-year</div>
+      <div class="wi-delta-val ${deltaClass(dm3)}">${fmtDelta(dm3)}</div>
+    </div>
+    <div class="wi-delta-item">
+      <div class="wi-delta-lbl">Δ 5-year</div>
+      <div class="wi-delta-val ${deltaClass(dm5)}">${fmtDelta(dm5)}</div>
+    </div>
+    <div class="wi-delta-item" style="flex:0">
+      ${tierChangeHTML}
+    </div>`;
+
+  // Side-by-side cards
+  function card(label, tier, lp, mort) {
+    return `<div class="wi-card ${tier.cls}">
+      <div class="wi-card-lbl">${label}</div>
+      <div class="wi-card-tier">${tier.icon} ${tier.label}</div>
+      <div class="wi-card-lp">LP = ${lp.toFixed(3)}</div>
+      <div class="wi-card-mort">
+        <div class="wi-mort-cell"><div class="wi-mort-t">1-year</div><div class="wi-mort-v">${mort.m1.toFixed(1)}%</div></div>
+        <div class="wi-mort-cell"><div class="wi-mort-t">3-year</div><div class="wi-mort-v">${mort.m3.toFixed(1)}%</div></div>
+        <div class="wi-mort-cell"><div class="wi-mort-t">5-year</div><div class="wi-mort-v">${mort.m5.toFixed(1)}%</div></div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('wi-result').innerHTML =
+    card('Original', tierOrig, lpOrig, mortOrig) +
+    card('Adjusted', tierAdj, lpAdj, mortAdj);
+
+  // Contribution comparison bars
+  function getContribs(rawVals) {
+    const contribs = {};
+    for (const v of m.vars) {
+      const cfg = WI_CONFIG[v];
+      if (!cfg) continue;
+      contribs[v] = m.coefs[v] * (cfg.toModel(rawVals[v]) - m.mean[v]) / m.scale[v];
+    }
+    return contribs;
+  }
+  const cOrig = getContribs(_wiOriginal);
+  const cAdj  = getContribs(_wiCurrent);
+  const maxAbs = Math.max(...m.vars.map(v=>Math.max(Math.abs(cOrig[v]||0),Math.abs(cAdj[v]||0))));
+
+  let barsHTML = '';
+  for (const v of m.vars) {
+    const cfg = WI_CONFIG[v];
+    if (!cfg) continue;
+    const co = cOrig[v]||0, ca = cAdj[v]||0;
+    const pOrig = Math.abs(co)/maxAbs*100;
+    const pAdj  = Math.abs(ca)/maxAbs*100;
+    const colOrig = co>=0?'#fca5a5':'#86efac';
+    const colAdj  = ca>=0?'#dc2626':'#059669';
+    const changed = Math.abs(ca-co)>0.001;
+    barsHTML += `
+      <div class="wi-contrib-row">
+        <div class="wi-contrib-lbl" title="${cfg.label}">${cfg.label}</div>
+        <div class="wi-contrib-track">
+          <div class="wi-contrib-bar-orig" style="width:${pOrig}%;background:${colOrig}"></div>
+          <div class="wi-contrib-bar-adj"  style="width:${pAdj}%;background:${colAdj}${changed?';outline:1px solid #333':''}" ></div>
+        </div>
+        <div class="wi-contrib-val" style="color:${colAdj}">${ca>=0?'+':''}${ca.toFixed(3)}</div>
+      </div>`;
+  }
+  document.getElementById('wi-contrib-bars').innerHTML = barsHTML;
+  document.getElementById('wi-result-container').style.display = 'block';
+}
+
+// Expose: called from calculate() after a result is computed
+function wiSync(inputs) {
+  if (document.getElementById('wi-panel').style.display !== 'none') {
+    wiBuildPanel(inputs);
+  }
+}
+
+window.addEventListener('load', () => sel('max'));
+</script>
+</body>
+</html>
